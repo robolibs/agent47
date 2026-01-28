@@ -103,6 +103,7 @@ endif()
 option(${PROJECT_NAME_UPPER}_BUILD_EXAMPLES "Build examples" OFF)
 option(${PROJECT_NAME_UPPER}_ENABLE_TESTS "Enable tests" OFF)
 option(${PROJECT_NAME_UPPER}_BIG_TRANSFER "Enable 100MB+ transfer tests (slow)" OFF)
+option(${PROJECT_NAME_UPPER}_HAS_ROS2 "Enable ROS2 bridge adapter" OFF)
 option(SHORT_NAMESPACE "Enable short namespace alias" ON)
 option(EXPOSE_ALL "Expose all submodule functions in namespace" OFF)
 
@@ -205,6 +206,36 @@ if(LIB_DEP_TARGETS)
 endif()
 
 add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+
+# ==================================================================================================
+# Optional ROS2 bridge
+# ==================================================================================================
+if(${PROJECT_NAME_UPPER}_HAS_ROS2)
+    find_package(rclcpp REQUIRED)
+    find_package(std_msgs REQUIRED)
+    find_package(geometry_msgs REQUIRED)
+    find_package(nav_msgs REQUIRED)
+    find_package(sensor_msgs REQUIRED)
+
+    set(_ROS2_LIBS
+        rclcpp::rclcpp
+        ${std_msgs_TARGETS}
+        ${geometry_msgs_TARGETS}
+        ${nav_msgs_TARGETS}
+        ${sensor_msgs_TARGETS}
+    )
+
+    get_target_property(_lib_type_ros ${PROJECT_NAME} TYPE)
+    if(_lib_type_ros STREQUAL "INTERFACE_LIBRARY")
+        target_compile_definitions(${PROJECT_NAME} INTERFACE ${PROJECT_NAME_UPPER}_HAS_ROS2)
+        target_link_libraries(${PROJECT_NAME} INTERFACE ${_ROS2_LIBS})
+    else()
+        target_compile_definitions(${PROJECT_NAME} PUBLIC ${PROJECT_NAME_UPPER}_HAS_ROS2)
+        target_link_libraries(${PROJECT_NAME} PUBLIC ${_ROS2_LIBS})
+    endif()
+
+    message(STATUS "${Green}ROS2 bridge${Reset} enabled for ${Blue}${PROJECT_NAME}${Reset}")
+endif()
 
 # ==================================================================================================
 # Installation

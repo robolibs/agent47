@@ -1,7 +1,5 @@
 #pragma once
 
-#pragma once
-
 #include <drivekit/tracker.hpp>
 #include <farmtrax/farmtrax.hpp>
 #include <netpipe/netpipe.hpp>
@@ -10,6 +8,7 @@
 #include <datapod/pods/adapters/optional.hpp>
 #include <datapod/pods/adapters/result.hpp>
 
+#include "agent47/bridge.hpp"
 #include "agent47/model/robot.hpp"
 #include "agent47/types.hpp"
 
@@ -21,6 +20,12 @@ namespace agent47 {
         dp::Optional<drivekit::Tracker> tracker_;
         dp::Optional<netpipe::Pipe> pipe_;
 
+        Bridge *bridge_ = nullptr;
+
+        // Manual velocity override.
+        dp::Optional<double> manual_linear_;
+        dp::Optional<double> manual_angular_;
+
       public:
         Agent() = default;
 
@@ -28,6 +33,29 @@ namespace agent47 {
 
         inline model::Robot &model() { return model_; }
         inline const model::Robot &model() const { return model_; }
+
+        // -- Bridge --
+
+        inline void set_bridge(Bridge *b) { bridge_ = b; }
+        inline Bridge *bridge() const { return bridge_; }
+
+        // -- Manual velocity control --
+
+        inline void set_manual_velocity(double linear, double angular) {
+            manual_linear_ = linear;
+            manual_angular_ = angular;
+        }
+
+        inline void clear_manual_velocity() {
+            manual_linear_.reset();
+            manual_angular_.reset();
+        }
+
+        inline void brake() { set_manual_velocity(0.0, 0.0); }
+
+        inline void set_speed_scale(float s) { model_.runtime.speed_scale = s; }
+
+        // -- Modules --
 
         inline dp::Result<bool> attach_farmtrax() {
             farmtrax_.emplace();
@@ -56,65 +84,97 @@ namespace agent47 {
             return attach_drivekit();
         }
 
-        /// Convenience: update model runtime from an Observation.
-        inline void update(const types::Observation &obs) {
-            model_.runtime.tick_seq = obs.tick_seq;
-            model_.runtime.stamp_s = obs.stamp_s;
-            model_.runtime.pose = obs.pose;
-            model_.runtime.linear_mps = obs.linear_mps;
-            model_.runtime.angular_rps = obs.angular_rps;
-            model_.runtime.allow_move = obs.allow_move;
-            model_.runtime.allow_reverse = obs.allow_reverse;
-            if (!obs.robot_id.empty()) {
-                model_.identity.uuid = obs.robot_id;
+        // -- Update / Tick --
+
+        /// Update model runtime from a Feedback message.
+        inline void update(const types::Feedback &fb) {
+            model_.runtime.tick_seq = fb.tick_seq;
+            model_.runtime.stamp_s = fb.stamp_s;
+            model_.runtime.pose = fb.pose;
+            model_.runtime.linear_mps = fb.linear_mps;
+            model_.runtime.angular_rps = fb.angular_rps;
+
+            model_.sensors.data.tick_seq = fb.tick_seq;
+            model_.sensors.data.stamp_s = fb.stamp_s;
+            model_.sensors.data.has_lidar = fb.has_lidar;
+            model_.sensors.data.has_gps = fb.has_gps;
+            model_.sensors.data.has_imu = fb.has_imu;
+            if (fb.has_lidar) {
+                model_.sensors.data.lidar = fb.lidar;
+            }
+            if (fb.has_gps) {
+                model_.sensors.data.gps = fb.gps;
+            }
+            if (fb.has_imu) {
+                model_.sensors.data.imu = fb.imu;
             }
         }
 
-        /// Tick using the model's current runtime state.
+        /// Tick using the model's current runtime state (no bridge).
         inline dp::Result<types::Command> tick(double dt_s) {
-            types::Observation obs;
-            obs.robot_id = model_.identity.uuid;
-            obs.tick_seq = model_.runtime.tick_seq;
-            obs.stamp_s = model_.runtime.stamp_s;
-            obs.pose = model_.runtime.pose;
-            obs.linear_mps = model_.runtime.linear_mps;
-            obs.angular_rps = model_.runtime.angular_rps;
-            obs.allow_move = model_.runtime.allow_move;
-            obs.allow_reverse = model_.runtime.allow_reverse;
-            return tick(obs, dt_s);
+            types::Feedback fb;
+            bool have_fb = false;
+
+            if (bridge_) {
+                have_fb = bridge_->recv(fb);
+            }
+
+            if (!have_fb) {
+                // Build feedback from model state.
+                fb.tick_seq = model_.runtime.tick_seq;
+                fb.stamp_s = model_.runtime.stamp_s;
+                fb.pose = model_.runtime.pose;
+                if (model_.runtime.linear_mps.has_value()) {
+                    fb.linear_mps = *model_.runtime.linear_mps;
+                }
+                if (model_.runtime.angular_rps.has_value()) {
+                    fb.angular_rps = *model_.runtime.angular_rps;
+                }
+            }
+
+            auto result = tick(fb, dt_s);
+
+            if (bridge_ && result.is_ok()) {
+                bridge_->send(result.value());
+            }
+
+            return result;
         }
 
-        /// Tick using an explicit observation (also updates the model).
-        inline dp::Result<types::Command> tick(const types::Observation &obs, double dt_s) {
-            update(obs);
+        /// Tick using an explicit feedback (standalone / test mode).
+        inline dp::Result<types::Command> tick(const types::Feedback &fb, double dt_s) {
+            update(fb);
 
             types::Command out;
-            out.stamp_s = obs.stamp_s;
+            out.stamp_s = fb.stamp_s;
+
+            // Manual override takes precedence.
+            if (manual_linear_.has_value() || manual_angular_.has_value()) {
+                out.valid = true;
+                out.linear_mps = manual_linear_.has_value() ? *manual_linear_ : 0.0;
+                out.angular_rps = manual_angular_.has_value() ? *manual_angular_ : 0.0;
+                out.linear_mps *= model_.runtime.speed_scale;
+                out.angular_rps *= model_.runtime.speed_scale;
+                return dp::Result<types::Command>::ok(out);
+            }
 
             if (!tracker_) {
                 return dp::Result<types::Command>::err(dp::Error::invalid_argument("drivekit not attached"));
             }
 
             drivekit::RobotState st;
-            st.pose = obs.pose;
-            st.allow_move = obs.allow_move;
-            st.allow_reverse = obs.allow_reverse;
-            st.timestamp = obs.stamp_s;
-            if (obs.linear_mps.has_value()) {
-                st.velocity.linear = *obs.linear_mps;
-            }
-            if (obs.angular_rps.has_value()) {
-                st.velocity.angular = *obs.angular_rps;
-            }
+            st.pose = fb.pose;
+            st.allow_move = model_.runtime.allow_move;
+            st.allow_reverse = model_.runtime.allow_reverse;
+            st.timestamp = fb.stamp_s;
+            st.velocity.linear = fb.linear_mps;
+            st.velocity.angular = fb.angular_rps;
 
             auto cmd = tracker_->tick(st, static_cast<float>(dt_s), nullptr);
             out.valid = cmd.valid;
             if (cmd.valid) {
-                out.linear_mps = cmd.linear_velocity;
-                out.angular_rps = cmd.angular_velocity;
-                out.status = cmd.status_message;
-            } else {
-                out.status = "no active goal/path";
+                out.linear_mps = cmd.linear_velocity * model_.runtime.speed_scale;
+                out.angular_rps = cmd.angular_velocity * model_.runtime.speed_scale;
             }
             return dp::Result<types::Command>::ok(out);
         }

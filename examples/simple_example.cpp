@@ -19,26 +19,28 @@ int main() {
     agent.model().identity.type = "diff_drive";
     agent.attach_drivekit(constraints);
 
-    agent47::types::Observation obs;
-    obs.robot_id = agent.model().identity.uuid;
-    obs.pose.point = datapod::Point{0.0, 0.0, 0.0};
-    obs.pose.rotation = datapod::Quaternion::from_euler(0.0, 0.0, 0.0);
-    obs.allow_move = true;
-    obs.allow_reverse = true;
+    // -- PipeBridge usage (uncomment to connect to a running backend) --
+    // agent47::PipeBridge pipe_bridge;
+    // if (pipe_bridge.connect("tcp://127.0.0.1:9000")) {
+    //     agent.set_bridge(&pipe_bridge);
+    // }
+
+    agent47::types::Feedback fb;
+    fb.pose.point = datapod::Point{0.0, 0.0, 0.0};
+    fb.pose.rotation = datapod::Quaternion::from_euler(0.0, 0.0, 0.0);
 
     const double dt_s = 0.1;
     for (int i = 0; i < 20; ++i) {
-        obs.stamp_s = i * dt_s;
-        obs.tick_seq = static_cast<uint64_t>(i);
-        agent.model().runtime.stamp_s = obs.stamp_s;
-        agent.model().runtime.tick_seq = obs.tick_seq;
-        auto cmd_res = agent.tick(obs, dt_s);
+        fb.stamp_s = i * dt_s;
+        fb.tick_seq = static_cast<uint64_t>(i);
+        agent.model().runtime.stamp_s = fb.stamp_s;
+        agent.model().runtime.tick_seq = fb.tick_seq;
+        auto cmd_res = agent.tick(fb, dt_s);
         if (cmd_res.is_ok()) {
             const auto &cmd = cmd_res.value();
-            echo("t=", obs.stamp_s, " valid=", cmd.valid, " v=", cmd.linear_mps, " w=", cmd.angular_rps, " status='",
-                 cmd.status, "'");
+            echo("t=", fb.stamp_s, " valid=", cmd.valid, " v=", cmd.linear_mps, " w=", cmd.angular_rps);
         } else {
-            echo("t=", obs.stamp_s, " error=", cmd_res.error().message);
+            echo("t=", fb.stamp_s, " error=", cmd_res.error().message);
         }
     }
 
