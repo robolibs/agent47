@@ -70,7 +70,7 @@ cmake_policy(SET CMP0074 NEW)
 cmake_policy(SET CMP0135 NEW)
 
 # Compiler-specific flags
-set(COMMON_FLAGS -Wall -Wextra -Wpedantic -Wno-reorder -Wno-narrowing -Wno-array-bounds -Wno-vla
+set(COMMON_FLAGS -Wall -Wextra -Wpedantic -Wno-reorder -Wno-narrowing -Wno-array-bounds -Wno-vla -Wno-unused-but-set-variable
     -Wno-unused-variable -Wno-unused-parameter -Wno-unused-result -Wno-unused-but-set-variablei -Wno-parentheses)
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
@@ -234,7 +234,7 @@ if(${PROJECT_NAME_UPPER}_BUILD_EXAMPLES)
     foreach(src_file IN LISTS example_sources)
         get_filename_component(exec_name "${src_file}" NAME_WE)
         add_executable(${exec_name} "${src_file}")
-        target_compile_definitions(${exec_name} PRIVATE SHORT_NAMESPACE HAS_RERUN PROJECT_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+        target_compile_definitions(${exec_name} PRIVATE SHORT_NAMESPACE PROJECT_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
         target_link_libraries(${exec_name} ${PROJECT_NAME}::${PROJECT_NAME} ${ALL_EXAMPLE_DEPS})
         install(TARGETS ${exec_name} DESTINATION bin)
     endforeach()

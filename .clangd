@@ -1,0 +1,13 @@
+CompileFlags:
+  Add: 
+    - "-ferror-limit=0"
+  Remove:
+    - "-arch=sm_89"
+
+Diagnostics:
+  Suppress: 
+    - "constexpr_redecl_mismatch"
+    - "pp_hash_error"
+    - "warn_unused_function"
+    - "invalid_consteval_call"
+    - "redefinition_different_kind"

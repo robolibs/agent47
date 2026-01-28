@@ -1,50 +1,45 @@
-#include <argu/argu.hpp>
+#include <agent47.hpp>
 #include <echo/echo.hpp>
-#include <scan/scan.hpp>
 
-int main(int argc, char *argv[]) {
-    // Variables to bind arguments to
-    std::string name;
-    int count = 1;
-    std::vector<std::string> files;
+#include <iostream>
 
-    // Build the command
-    auto cmd = argu::Command("argue_basic")
-                   .version("1.0.0")
-                   .about("A basic example demonstrating the Argue argument parsing library")
-                   .arg(argu::Arg("name").positional().help("Your name").required().value_of(name).value_name("NAME"))
-                   .arg(argu::Arg("count")
-                            .short_name('c')
-                            .long_name("count")
-                            .help("Number of times to greet")
-                            .value_of(count)
-                            .default_value("1")
-                            .value_name("NUM"))
-                   .arg(argu::Arg("files")
-                            .short_name('f')
-                            .long_name("file")
-                            .help("Input files to process")
-                            .value_of(files)
-                            .takes_multiple()
-                            .value_name("FILE"));
+int main() {
+    agent47::Agent agent;
 
-    auto result = cmd.parse(argc, argv);
-    if (!result) {
-        return result.exit();
-    }
+    agent.attach_farmtrax();
 
-    for (int i = 0; i < count; ++i) {
-        echo("Hello, ", name, "!");
-    }
+    drivekit::RobotConstraints constraints;
+    constraints.steering_type = drivekit::SteeringType::DIFFERENTIAL;
+    constraints.max_linear_velocity = 1.0;
+    constraints.max_angular_velocity = 1.0;
 
-    if (!files.empty()) {
-        std::cout << "\nWould process files: ";
-        for (size_t i = 0; i < files.size(); ++i) {
-            if (i > 0)
-                echo(", ");
-            echo(files[i]);
+    // Populate the unified model (identity/body/runtime)
+    agent.model().identity.uuid = "robot_0";
+    agent.model().identity.name = "demo_robot";
+    agent.model().identity.type = "diff_drive";
+    agent.attach_drivekit(constraints);
+
+    agent47::types::Observation obs;
+    obs.robot_id = agent.model().identity.uuid;
+    obs.pose.point = datapod::Point{0.0, 0.0, 0.0};
+    obs.pose.rotation = datapod::Quaternion::from_euler(0.0, 0.0, 0.0);
+    obs.allow_move = true;
+    obs.allow_reverse = true;
+
+    const double dt_s = 0.1;
+    for (int i = 0; i < 20; ++i) {
+        obs.stamp_s = i * dt_s;
+        obs.tick_seq = static_cast<uint64_t>(i);
+        agent.model().runtime.stamp_s = obs.stamp_s;
+        agent.model().runtime.tick_seq = obs.tick_seq;
+        auto cmd_res = agent.tick(obs, dt_s);
+        if (cmd_res.is_ok()) {
+            const auto &cmd = cmd_res.value();
+            echo("t=", obs.stamp_s, " valid=", cmd.valid, " v=", cmd.linear_mps, " w=", cmd.angular_rps, " status='",
+                 cmd.status, "'");
+        } else {
+            echo("t=", obs.stamp_s, " error=", cmd_res.error().message);
         }
-        echo("\n");
     }
 
     return 0;
