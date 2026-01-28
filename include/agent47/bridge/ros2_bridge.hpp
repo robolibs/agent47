@@ -97,10 +97,10 @@ namespace agent47 {
                     last_fb_.imu.accel_z = static_cast<float>(msg->linear_acceleration.z);
                     last_fb_.imu.gyro_z = static_cast<float>(msg->angular_velocity.z);
                     // yaw from orientation quaternion (extract yaw from quaternion)
-                    double siny = 2.0 * (msg->orientation.w * msg->orientation.z +
-                                         msg->orientation.x * msg->orientation.y);
-                    double cosy = 1.0 - 2.0 * (msg->orientation.y * msg->orientation.y +
-                                                msg->orientation.z * msg->orientation.z);
+                    double siny =
+                        2.0 * (msg->orientation.w * msg->orientation.z + msg->orientation.x * msg->orientation.y);
+                    double cosy =
+                        1.0 - 2.0 * (msg->orientation.y * msg->orientation.y + msg->orientation.z * msg->orientation.z);
                     last_fb_.imu.yaw_rad = static_cast<float>(std::atan2(siny, cosy));
                 });
 

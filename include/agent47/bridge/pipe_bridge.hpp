@@ -44,28 +44,27 @@ namespace agent47 {
 
             pipe_.emplace(std::move(res.value()));
 
-            rpc_ = std::make_unique<netpipe::Remote<netpipe::Bidirect>>(
-                *pipe_->stream().get(),
-                /*max_concurrent=*/100,
-                /*enable_metrics=*/false,
-                /*recv_timeout_ms=*/100,
-                /*handler_threads=*/2,
-                /*max_handler_queue=*/100,
-                /*handler_timeout_ms=*/0,
-                /*max_incoming=*/100);
+            rpc_ = std::make_unique<netpipe::Remote<netpipe::Bidirect>>(*pipe_->stream().get(),
+                                                                        /*max_concurrent=*/100,
+                                                                        /*enable_metrics=*/false,
+                                                                        /*recv_timeout_ms=*/100,
+                                                                        /*handler_threads=*/2,
+                                                                        /*max_handler_queue=*/100,
+                                                                        /*handler_timeout_ms=*/0,
+                                                                        /*max_incoming=*/100);
 
             // Backend calls us on AGENT47_METHOD_FEEDBACK with serialised Feedback.
-            rpc_->register_method(
-                AGENT47_METHOD_FEEDBACK, [this](const netpipe::Message &msg) -> dp::Res<netpipe::Message> {
-                    types::Feedback fb;
-                    if (deserialize_feedback(msg, fb)) {
-                        std::lock_guard<std::mutex> lock(fb_mutex_);
-                        last_fb_ = std::move(fb);
-                        fb_ready_ = true;
-                        fb_cv_.notify_one();
-                    }
-                    return dp::result::ok(netpipe::Message{});
-                });
+            rpc_->register_method(AGENT47_METHOD_FEEDBACK,
+                                  [this](const netpipe::Message &msg) -> dp::Res<netpipe::Message> {
+                                      types::Feedback fb;
+                                      if (deserialize_feedback(msg, fb)) {
+                                          std::lock_guard<std::mutex> lock(fb_mutex_);
+                                          last_fb_ = std::move(fb);
+                                          fb_ready_ = true;
+                                          fb_cv_.notify_one();
+                                      }
+                                      return dp::result::ok(netpipe::Message{});
+                                  });
 
             return true;
         }
