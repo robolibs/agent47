@@ -70,7 +70,7 @@ cmake_policy(SET CMP0074 NEW)
 cmake_policy(SET CMP0135 NEW)
 
 # Compiler-specific flags
-set(COMMON_FLAGS -Wall -Wextra -Wpedantic -Wno-reorder -Wno-narrowing -Wno-array-bounds -Wno-vla
+set(COMMON_FLAGS -Wall -Wextra -Wpedantic -Wno-reorder -Wno-narrowing -Wno-array-bounds -Wno-vla -Wno-unused-but-set-variable
     -Wno-unused-variable -Wno-unused-parameter -Wno-unused-result -Wno-unused-but-set-variablei -Wno-parentheses)
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
@@ -103,6 +103,7 @@ endif()
 option(${PROJECT_NAME_UPPER}_BUILD_EXAMPLES "Build examples" OFF)
 option(${PROJECT_NAME_UPPER}_ENABLE_TESTS "Enable tests" OFF)
 option(${PROJECT_NAME_UPPER}_BIG_TRANSFER "Enable 100MB+ transfer tests (slow)" OFF)
+option(${PROJECT_NAME_UPPER}_HAS_ROS2 "Enable ROS2 bridge adapter" OFF)
 option(SHORT_NAMESPACE "Enable short namespace alias" ON)
 option(EXPOSE_ALL "Expose all submodule functions in namespace" OFF)
 
@@ -207,6 +208,36 @@ endif()
 add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 # ==================================================================================================
+# Optional ROS2 bridge
+# ==================================================================================================
+if(${PROJECT_NAME_UPPER}_HAS_ROS2)
+    find_package(rclcpp REQUIRED)
+    find_package(std_msgs REQUIRED)
+    find_package(geometry_msgs REQUIRED)
+    find_package(nav_msgs REQUIRED)
+    find_package(sensor_msgs REQUIRED)
+
+    set(_ROS2_LIBS
+        rclcpp::rclcpp
+        ${std_msgs_TARGETS}
+        ${geometry_msgs_TARGETS}
+        ${nav_msgs_TARGETS}
+        ${sensor_msgs_TARGETS}
+    )
+
+    get_target_property(_lib_type_ros ${PROJECT_NAME} TYPE)
+    if(_lib_type_ros STREQUAL "INTERFACE_LIBRARY")
+        target_compile_definitions(${PROJECT_NAME} INTERFACE ${PROJECT_NAME_UPPER}_HAS_ROS2)
+        target_link_libraries(${PROJECT_NAME} INTERFACE ${_ROS2_LIBS})
+    else()
+        target_compile_definitions(${PROJECT_NAME} PUBLIC ${PROJECT_NAME_UPPER}_HAS_ROS2)
+        target_link_libraries(${PROJECT_NAME} PUBLIC ${_ROS2_LIBS})
+    endif()
+
+    message(STATUS "${Green}ROS2 bridge${Reset} enabled for ${Blue}${PROJECT_NAME}${Reset}")
+endif()
+
+# ==================================================================================================
 # Installation
 # ==================================================================================================
 include(GNUInstallDirs)
@@ -234,7 +265,7 @@ if(${PROJECT_NAME_UPPER}_BUILD_EXAMPLES)
     foreach(src_file IN LISTS example_sources)
         get_filename_component(exec_name "${src_file}" NAME_WE)
         add_executable(${exec_name} "${src_file}")
-        target_compile_definitions(${exec_name} PRIVATE SHORT_NAMESPACE HAS_RERUN PROJECT_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+        target_compile_definitions(${exec_name} PRIVATE SHORT_NAMESPACE PROJECT_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
         target_link_libraries(${exec_name} ${PROJECT_NAME}::${PROJECT_NAME} ${ALL_EXAMPLE_DEPS})
         install(TARGETS ${exec_name} DESTINATION bin)
     endforeach()
