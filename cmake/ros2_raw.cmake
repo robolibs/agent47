@@ -35,12 +35,14 @@ function(agent47_enable_ros2_raw target)
     target_link_libraries(${target}
         PUBLIC
         rclcpp
+        libstatistics_collector
         rcl
         rcutils
         rmw
         rmw_implementation
         rcl_logging_interface
         rcl_yaml_param_parser
+        tracetools
 
         # rosidl runtime / typesupport
         rosidl_runtime_c
@@ -57,11 +59,15 @@ function(agent47_enable_ros2_raw target)
         geometry_msgs__rosidl_typesupport_cpp
         nav_msgs__rosidl_typesupport_cpp
         sensor_msgs__rosidl_typesupport_cpp
+        statistics_msgs__rosidl_typesupport_cpp
+        turtlesim__rosidl_typesupport_cpp
 
         std_msgs__rosidl_typesupport_c
         geometry_msgs__rosidl_typesupport_c
         nav_msgs__rosidl_typesupport_c
         sensor_msgs__rosidl_typesupport_c
+        statistics_msgs__rosidl_typesupport_c
+        turtlesim__rosidl_typesupport_c
     )
 
     # Common POSIX libs used by ROS2.

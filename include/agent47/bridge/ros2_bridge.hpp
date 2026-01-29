@@ -2,24 +2,27 @@
 
 #ifdef AGENT47_HAS_ROS2
 
-#include <cmath>
-#include <memory>
-#include <mutex>
-#include <string>
+    #include <cmath>
+    #include <memory>
+    #include <mutex>
+    #include <string>
 
-#include <rclcpp/rclcpp/rclcpp.hpp>
+    #include <rclcpp/rclcpp/rclcpp.hpp>
 
-#include <geometry_msgs/msg/twist.hpp>
-#include <nav_msgs/msg/odometry.hpp>
-#include <sensor_msgs/msg/imu.hpp>
-#include <sensor_msgs/msg/joint_state.hpp>
-#include <sensor_msgs/msg/laser_scan.hpp>
-#include <sensor_msgs/msg/nav_sat_fix.hpp>
+    #include <geometry_msgs/msg/twist.hpp>
+    #include <nav_msgs/msg/odometry.hpp>
+    #include <sensor_msgs/msg/imu.hpp>
+    #include <sensor_msgs/msg/joint_state.hpp>
+    #include <sensor_msgs/msg/laser_scan.hpp>
+    #include <sensor_msgs/msg/nav_sat_fix.hpp>
+    // turtlesim support
+    #include <turtlesim/msg/pose.hpp>
 
-#include "agent47/bridge.hpp"
-#include "agent47/sensors/gnss.hpp"
-#include "agent47/sensors/imu.hpp"
-#include "agent47/sensors/lidar.hpp"
+    #include "agent47/bridge.hpp"
+    #include "agent47/model/robot.hpp"
+    #include "agent47/sensors/gnss.hpp"
+    #include "agent47/sensors/imu.hpp"
+    #include "agent47/sensors/lidar.hpp"
 
 namespace agent47 {
 
@@ -37,6 +40,21 @@ namespace agent47 {
         Ros2Bridge(const Ros2Bridge &) = delete;
         Ros2Bridge &operator=(const Ros2Bridge &) = delete;
 
+        /// Convenience overload: connect using a robot identity.
+        ///
+        /// Uses identity.name as the namespace root.
+        /// - "turtle1" -> topics like "/turtle1/pose", "/turtle1/cmd_vel"
+        /// - "/turtle1" -> same (leading slash kept)
+        bool connect(const model::Identity &id) {
+            if (id.name.empty()) {
+                return connect("/");
+            }
+            if (id.name[0] == '/') {
+                return connect(id.name);
+            }
+            return connect(std::string("/") + id.name);
+        }
+
         bool connect(const std::string &ns) override {
             if (!rclcpp::ok()) {
                 rclcpp::init(0, nullptr);
@@ -52,6 +70,8 @@ namespace agent47 {
             odom_sub_ = node_->create_subscription<nav_msgs::msg::Odometry>(
                 "odom", 10, [this](nav_msgs::msg::Odometry::SharedPtr msg) {
                     std::lock_guard<std::mutex> lock(fb_mutex_);
+                    const auto ns = static_cast<dp::i64>(msg->header.stamp.sec) * 1'000'000'000LL +
+                                    static_cast<dp::i64>(msg->header.stamp.nanosec);
                     last_fb_.stamp_s = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
                     last_fb_.tick_seq++;
                     last_fb_.pose.point.x = msg->pose.pose.position.x;
@@ -68,6 +88,40 @@ namespace agent47 {
                     last_fb_.twist.angular.vy = msg->twist.twist.angular.y;
                     last_fb_.twist.angular.vz = msg->twist.twist.angular.z;
                     fb_ready_ = true;
+
+                    last_pose_ = dp::Stamp<dp::Pose>{ns, last_fb_.pose};
+                    last_twist_ = dp::Stamp<dp::Twist>{ns, last_fb_.twist};
+                    pose_ready_ = true;
+                    twist_ready_ = true;
+                });
+
+            pose_sub_ = node_->create_subscription<turtlesim::msg::Pose>(
+                "pose", 10, [this](turtlesim::msg::Pose::SharedPtr msg) {
+                    std::lock_guard<std::mutex> lock(fb_mutex_);
+
+                    const auto ns = static_cast<dp::i64>(node_->now().nanoseconds());
+
+                    // turtlesim provides planar pose + yaw + linear/angular velocity.
+                    last_fb_.tick_seq++;
+                    last_fb_.pose.point.x = static_cast<dp::f64>(msg->x);
+                    last_fb_.pose.point.y = static_cast<dp::f64>(msg->y);
+                    last_fb_.pose.point.z = 0.0;
+                    last_fb_.pose.rotation =
+                        datapod::Quaternion::from_euler(0.0, 0.0, static_cast<dp::f64>(msg->theta));
+
+                    last_fb_.twist.linear.vx = static_cast<dp::f64>(msg->linear_velocity);
+                    last_fb_.twist.linear.vy = 0.0;
+                    last_fb_.twist.linear.vz = 0.0;
+                    last_fb_.twist.angular.vx = 0.0;
+                    last_fb_.twist.angular.vy = 0.0;
+                    last_fb_.twist.angular.vz = static_cast<dp::f64>(msg->angular_velocity);
+
+                    fb_ready_ = true;
+
+                    last_pose_ = dp::Stamp<dp::Pose>{ns, last_fb_.pose};
+                    last_twist_ = dp::Stamp<dp::Twist>{ns, last_fb_.twist};
+                    pose_ready_ = true;
+                    twist_ready_ = true;
                 });
 
             joint_sub_ = node_->create_subscription<sensor_msgs::msg::JointState>(
@@ -160,6 +214,7 @@ namespace agent47 {
 
         void disconnect() override {
             odom_sub_.reset();
+            pose_sub_.reset();
             joint_sub_.reset();
             scan_sub_.reset();
             imu_sub_.reset();
@@ -205,6 +260,36 @@ namespace agent47 {
             return false;
         }
 
+        /// Read the latest pose with a nanosecond timestamp.
+        ///
+        /// For stamped messages (e.g. nav_msgs/Odometry), the stamp is derived
+        /// from the ROS message header. For turtlesim pose (no header), the
+        /// stamp uses node_->now().
+        bool read(dp::Stamp<dp::Pose> &out) {
+            std::lock_guard<std::mutex> lock(fb_mutex_);
+            if (!pose_ready_) {
+                return false;
+            }
+            out = last_pose_;
+            pose_ready_ = false;
+            return true;
+        }
+
+        /// Read the latest twist with a nanosecond timestamp.
+        ///
+        /// For stamped messages (e.g. nav_msgs/Odometry), the stamp is derived
+        /// from the ROS message header. For turtlesim pose (no header), the
+        /// stamp uses node_->now().
+        bool read(dp::Stamp<dp::Twist> &out) {
+            std::lock_guard<std::mutex> lock(fb_mutex_);
+            if (!twist_ready_) {
+                return false;
+            }
+            out = last_twist_;
+            twist_ready_ = false;
+            return true;
+        }
+
         bool read(dp::Stamp<ImuData> &out) {
             std::lock_guard<std::mutex> lock(fb_mutex_);
             if (!imu_ready_) {
@@ -240,6 +325,7 @@ namespace agent47 {
         bool owns_init_ = false;
 
         rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
+        rclcpp::Subscription<turtlesim::msg::Pose>::SharedPtr pose_sub_;
         rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_sub_;
         rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_sub_;
         rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
@@ -249,6 +335,11 @@ namespace agent47 {
         mutable std::mutex fb_mutex_;
         types::Feedback last_fb_;
         bool fb_ready_ = false;
+
+        dp::Stamp<dp::Pose> last_pose_;
+        dp::Stamp<dp::Twist> last_twist_;
+        bool pose_ready_ = false;
+        bool twist_ready_ = false;
 
         dp::Stamp<ImuData> last_imu_;
         dp::Stamp<GnssData> last_gnss_;
