@@ -17,7 +17,7 @@ namespace agent47 {
         virtual bool is_connected() const = 0;
 
         virtual bool send(const types::Command &cmd) = 0;
-        virtual bool recv(types::Feedback &fb, int timeout_ms = 100) = 0;
+        virtual bool recv(types::Feedback &fb, dp::i32 timeout_ms = 100) = 0;
     };
 
 } // namespace agent47

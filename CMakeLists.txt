@@ -235,6 +235,60 @@ if(${PROJECT_NAME_UPPER}_HAS_ROS2)
     endif()
 
     message(STATUS "${Green}ROS2 bridge${Reset} enabled for ${Blue}${PROJECT_NAME}${Reset}")
+
+    # tracetools (brought by rclcpp) may try to link against lttng-ust. Some
+    # minimal environments ship ROS2 without those libs, which breaks linking.
+    # Only keep those link flags if the libraries are actually available.
+    find_library(_AGENT47_LTTNG_UST NAMES lttng-ust)
+    find_library(_AGENT47_LTTNG_UST_COMMON NAMES lttng-ust-common)
+    if(NOT _AGENT47_LTTNG_UST OR NOT _AGENT47_LTTNG_UST_COMMON)
+        message(WARNING "lttng-ust not found; stripping '-llttng-ust' link flags")
+
+        if(TARGET tracetools::tracetools)
+            set_target_properties(tracetools::tracetools PROPERTIES
+                INTERFACE_LINK_LIBRARIES "dl;-rdynamic;-ldl")
+        endif()
+
+        foreach(_tgt IN ITEMS ${PROJECT_NAME} simple_example doctest_test)
+            if(TARGET ${_tgt})
+                get_target_property(_iface_opts ${_tgt} INTERFACE_LINK_OPTIONS)
+                if(_iface_opts)
+                    list(REMOVE_ITEM _iface_opts -llttng-ust -llttng-ust-common)
+                    set_property(TARGET ${_tgt} PROPERTY INTERFACE_LINK_OPTIONS "${_iface_opts}")
+                endif()
+                get_target_property(_iface_libs ${_tgt} INTERFACE_LINK_LIBRARIES)
+                if(_iface_libs)
+                    list(REMOVE_ITEM _iface_libs lttng-ust lttng-ust-common)
+                    set_property(TARGET ${_tgt} PROPERTY INTERFACE_LINK_LIBRARIES "${_iface_libs}")
+                endif()
+                get_target_property(_opts ${_tgt} LINK_OPTIONS)
+                if(_opts)
+                    list(REMOVE_ITEM _opts -llttng-ust -llttng-ust-common)
+                    set_property(TARGET ${_tgt} PROPERTY LINK_OPTIONS "${_opts}")
+                endif()
+                get_target_property(_libs ${_tgt} LINK_LIBRARIES)
+                if(_libs)
+                    list(REMOVE_ITEM _libs lttng-ust lttng-ust-common)
+                    set_property(TARGET ${_tgt} PROPERTY LINK_LIBRARIES "${_libs}")
+                endif()
+
+                # In some cases the flags show up literally as "-llttng-ust".
+                get_target_property(_ll ${_tgt} LINK_LIBRARIES)
+                if(_ll)
+                    list(FILTER _ll EXCLUDE REGEX "(^|;)-llttng-ust($|;)")
+                    list(FILTER _ll EXCLUDE REGEX "(^|;)-llttng-ust-common($|;)")
+                    set_property(TARGET ${_tgt} PROPERTY LINK_LIBRARIES "${_ll}")
+                endif()
+
+                get_target_property(_ill ${_tgt} INTERFACE_LINK_LIBRARIES)
+                if(_ill)
+                    list(FILTER _ill EXCLUDE REGEX "(^|;)-llttng-ust($|;)")
+                    list(FILTER _ill EXCLUDE REGEX "(^|;)-llttng-ust-common($|;)")
+                    set_property(TARGET ${_tgt} PROPERTY INTERFACE_LINK_LIBRARIES "${_ill}")
+                endif()
+            endif()
+        endforeach()
+    endif()
 endif()
 
 # ==================================================================================================

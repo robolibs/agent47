@@ -20,9 +20,9 @@ int main() {
     agent.attach_drivekit(constraints);
 
     // -- PipeBridge usage (uncomment to connect to a running backend) --
-    // agent47::PipeBridge pipe_bridge;
-    // if (pipe_bridge.connect("tcp://127.0.0.1:9000")) {
-    //     agent.set_bridge(&pipe_bridge);
+    // auto bridge = std::make_shared<agent47::PipeBridge>();
+    // if (bridge->connect("tcp://127.0.0.1:9000")) {
+    //     agent.set_bridge(bridge);
     // }
 
     agent47::types::Feedback fb;
@@ -32,13 +32,11 @@ int main() {
     const double dt_s = 0.1;
     for (int i = 0; i < 20; ++i) {
         fb.stamp_s = i * dt_s;
-        fb.tick_seq = static_cast<uint64_t>(i);
-        agent.model().runtime.stamp_s = fb.stamp_s;
-        agent.model().runtime.tick_seq = fb.tick_seq;
+        fb.tick_seq = static_cast<dp::u64>(i);
         auto cmd_res = agent.tick(fb, dt_s);
         if (cmd_res.is_ok()) {
             const auto &cmd = cmd_res.value();
-            echo("t=", fb.stamp_s, " valid=", cmd.valid, " v=", cmd.linear_mps, " w=", cmd.angular_rps);
+            echo("t=", fb.stamp_s, " valid=", cmd.valid, " v=", cmd.twist.linear.vx, " w=", cmd.twist.angular.vz);
         } else {
             echo("t=", fb.stamp_s, " error=", cmd_res.error().message);
         }

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 #include <drivekit/tracker.hpp>
 #include <farmtrax/farmtrax.hpp>
 #include <netpipe/netpipe.hpp>
@@ -18,13 +20,12 @@ namespace agent47 {
         model::Robot model_;
         dp::Optional<farmtrax::Farmtrax> farmtrax_;
         dp::Optional<drivekit::Tracker> tracker_;
-        dp::Optional<netpipe::Pipe> pipe_;
+        std::shared_ptr<Bridge> bridge_;
 
-        Bridge *bridge_ = nullptr;
-
-        // Manual velocity override.
-        dp::Optional<double> manual_linear_;
-        dp::Optional<double> manual_angular_;
+        dp::Geo datum;
+        dp::Pose pose;
+        dp::Optional<dp::Twist> twist;
+        dp::Optional<dp::Path> path;
 
       public:
         Agent() = default;
@@ -36,24 +37,22 @@ namespace agent47 {
 
         // -- Bridge --
 
-        inline void set_bridge(Bridge *b) { bridge_ = b; }
-        inline Bridge *bridge() const { return bridge_; }
+        inline void set_bridge(std::shared_ptr<Bridge> b) { bridge_ = std::move(b); }
+        inline Bridge *bridge() const { return bridge_.get(); }
 
         // -- Manual velocity control --
 
-        inline void set_manual_velocity(double linear, double angular) {
-            manual_linear_ = linear;
-            manual_angular_ = angular;
+        inline void set_manual_velocity(const datapod::Twist &t) { twist = t; }
+
+        inline void set_manual_velocity(dp::f64 linear, dp::f64 angular) {
+            twist = datapod::Twist{{linear, 0.0, 0.0}, {0.0, 0.0, angular}};
         }
 
-        inline void clear_manual_velocity() {
-            manual_linear_.reset();
-            manual_angular_.reset();
-        }
+        inline void clear_manual_velocity() { twist.reset(); }
 
-        inline void brake() { set_manual_velocity(0.0, 0.0); }
+        inline void brake() { twist = datapod::Twist{}; }
 
-        inline void set_speed_scale(float s) { model_.runtime.speed_scale = s; }
+        inline void set_speed_scale(dp::f32 s) { model_.runtime.speed_scale = s; }
 
         // -- Modules --
 
@@ -88,30 +87,12 @@ namespace agent47 {
 
         /// Update model runtime from a Feedback message.
         inline void update(const types::Feedback &fb) {
-            model_.runtime.tick_seq = fb.tick_seq;
-            model_.runtime.stamp_s = fb.stamp_s;
             model_.runtime.pose = fb.pose;
-            model_.runtime.linear_mps = fb.linear_mps;
-            model_.runtime.angular_rps = fb.angular_rps;
-
-            model_.sensors.data.tick_seq = fb.tick_seq;
-            model_.sensors.data.stamp_s = fb.stamp_s;
-            model_.sensors.data.has_lidar = fb.has_lidar;
-            model_.sensors.data.has_gps = fb.has_gps;
-            model_.sensors.data.has_imu = fb.has_imu;
-            if (fb.has_lidar) {
-                model_.sensors.data.lidar = fb.lidar;
-            }
-            if (fb.has_gps) {
-                model_.sensors.data.gps = fb.gps;
-            }
-            if (fb.has_imu) {
-                model_.sensors.data.imu = fb.imu;
-            }
+            model_.runtime.twist = fb.twist;
         }
 
         /// Tick using the model's current runtime state (no bridge).
-        inline dp::Result<types::Command> tick(double dt_s) {
+        inline dp::Result<types::Command> tick(dp::f64 dt_s) {
             types::Feedback fb;
             bool have_fb = false;
 
@@ -121,15 +102,8 @@ namespace agent47 {
 
             if (!have_fb) {
                 // Build feedback from model state.
-                fb.tick_seq = model_.runtime.tick_seq;
-                fb.stamp_s = model_.runtime.stamp_s;
                 fb.pose = model_.runtime.pose;
-                if (model_.runtime.linear_mps.has_value()) {
-                    fb.linear_mps = *model_.runtime.linear_mps;
-                }
-                if (model_.runtime.angular_rps.has_value()) {
-                    fb.angular_rps = *model_.runtime.angular_rps;
-                }
+                fb.twist = model_.runtime.twist;
             }
 
             auto result = tick(fb, dt_s);
@@ -142,19 +116,18 @@ namespace agent47 {
         }
 
         /// Tick using an explicit feedback (standalone / test mode).
-        inline dp::Result<types::Command> tick(const types::Feedback &fb, double dt_s) {
+        inline dp::Result<types::Command> tick(const types::Feedback &fb, dp::f64 dt_s) {
             update(fb);
 
             types::Command out;
             out.stamp_s = fb.stamp_s;
 
             // Manual override takes precedence.
-            if (manual_linear_.has_value() || manual_angular_.has_value()) {
+            if (twist.has_value()) {
+                auto s = static_cast<dp::f64>(model_.runtime.speed_scale);
                 out.valid = true;
-                out.linear_mps = manual_linear_.has_value() ? *manual_linear_ : 0.0;
-                out.angular_rps = manual_angular_.has_value() ? *manual_angular_ : 0.0;
-                out.linear_mps *= model_.runtime.speed_scale;
-                out.angular_rps *= model_.runtime.speed_scale;
+                out.twist.linear = twist->linear * s;
+                out.twist.angular = twist->angular * s;
                 return dp::Result<types::Command>::ok(out);
             }
 
@@ -167,14 +140,15 @@ namespace agent47 {
             st.allow_move = model_.runtime.allow_move;
             st.allow_reverse = model_.runtime.allow_reverse;
             st.timestamp = fb.stamp_s;
-            st.velocity.linear = fb.linear_mps;
-            st.velocity.angular = fb.angular_rps;
+            st.velocity.linear = fb.twist.linear.vx;
+            st.velocity.angular = fb.twist.angular.vz;
 
-            auto cmd = tracker_->tick(st, static_cast<float>(dt_s), nullptr);
+            auto cmd = tracker_->tick(st, static_cast<dp::f32>(dt_s), nullptr);
             out.valid = cmd.valid;
             if (cmd.valid) {
-                out.linear_mps = cmd.linear_velocity * model_.runtime.speed_scale;
-                out.angular_rps = cmd.angular_velocity * model_.runtime.speed_scale;
+                auto s = static_cast<dp::f64>(model_.runtime.speed_scale);
+                out.twist.linear.vx = cmd.linear_velocity * s;
+                out.twist.angular.vz = cmd.angular_velocity * s;
             }
             return dp::Result<types::Command>::ok(out);
         }
