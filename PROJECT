@@ -33,7 +33,7 @@ drivekit|https://github.com/robolibs/drivekit.git|0.0.6
 farmtrax|https://github.com/robolibs/farmtrax.git|0.0.10
 
 [example]
-# pkg::rerun_sdk
+pkg::rerun_sdk
 
 [test]
 doctest|https://github.com/doctest/doctest.git|v2.4.12

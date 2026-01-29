@@ -38,17 +38,16 @@ ifdef BIG_TRANSFER
 endif
 
 # ==================================================================================================
-# Enable ROS2
+# ROS2 enable (raw)
 #
-# Enable automatically when a ROS2 environment is sourced (direnv/.envrc usually does this).
-# If you want to force-disable, run: make ... ROS2=0
+# Auto-enable when a ROS2 environment is sourced (direnv/.envrc usually sets AMENT_PREFIX_PATH).
+# Force-disable with: make <target> ROS2=0
 # ==================================================================================================
 ROS2 ?=
 ifeq ($(ROS2),0)
     # explicitly disabled
 else ifneq ($(strip $(AMENT_PREFIX_PATH)),)
     CMAKE_ROS_FLAG := -D$(PROJECT_CAP)_HAS_ROS2=ON
-    XMAKE_ROS_FLAG := --ros=y
 endif
 
 # ==================================================================================================
