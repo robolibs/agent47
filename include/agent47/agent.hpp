@@ -23,7 +23,7 @@ namespace agent47 {
         model::Robot model_;
         std::shared_ptr<Bridge> bridge_;
         dp::Geo datum;
-        dp::Pose pose;
+        dp::Odom odom;
         dp::Optional<dp::Twist> twist;
         dp::Optional<dp::Path> path;
 
@@ -51,10 +51,8 @@ namespace agent47 {
             model_.runtime.pose = fb.pose;
             model_.runtime.twist = fb.twist;
 
-            // Keep the public convenience state in sync with the model runtime.
-            // This allows users to read `agent.pose` directly after tick().
-            pose = fb.pose;
-            twist = fb.twist;
+            odom.pose = fb.pose;
+            odom.twist = fb.twist;
         }
 
         inline dp::Result<types::Command> tick(dp::f64 dt_s) {
