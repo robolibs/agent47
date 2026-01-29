@@ -177,7 +177,6 @@ namespace agent47 {
             write_val(msg, cmd.value.twist.angular.vx);
             write_val(msg, cmd.value.twist.angular.vy);
             write_val(msg, cmd.value.twist.angular.vz);
-            write_val(msg, static_cast<dp::u8>(cmd.value.valid ? 1 : 0));
             return msg;
         }
 
@@ -210,7 +209,6 @@ namespace agent47 {
             const dp::u8 *ptr = msg.data();
 
             fb.timestamp = read_val<dp::i64>(ptr);
-            fb.value.tick_seq = read_val<dp::u64>(ptr);
 
             fb.value.pose.point.x = read_val<dp::f64>(ptr);
             fb.value.pose.point.y = read_val<dp::f64>(ptr);

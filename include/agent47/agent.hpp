@@ -22,12 +22,14 @@ namespace agent47 {
       public:
         model::Robot model_;
         std::shared_ptr<Bridge> bridge_;
+
         dp::Geo datum;
         dp::Odom odom;
         dp::Optional<dp::Twist> twist;
         dp::Optional<dp::Path> path;
 
       private:
+        dp::Optional<dp::i64> last_fb_timestamp_ns_;
         dp::Optional<farmtrax::Farmtrax> farmtrax_;
         dp::Optional<drivekit::Tracker> tracker_;
 
@@ -55,7 +57,7 @@ namespace agent47 {
             odom.twist = fb.twist;
         }
 
-        inline dp::Result<types::Command> tick(dp::f64 dt_s) {
+        inline dp::Result<dp::Stamp<types::Command>> tick(dp::f64 dt_s) {
             dp::Stamp<types::Feedback> fb;
             bool have_fb = false;
             if (bridge_) {
@@ -66,30 +68,38 @@ namespace agent47 {
                 fb.value.pose = model_.runtime.pose;
                 fb.value.twist = model_.runtime.twist;
             }
-            auto result = tick(fb, dt_s);
+            auto result = tick(fb);
 
             echo::trace("Pose: ", fb.value.pose);
             echo::trace("Twist: ", fb.value.twist);
 
             if (bridge_ && result.is_ok()) {
-                bridge_->send(dp::Stamp<types::Command>{fb.timestamp, result.value()});
+                bridge_->send(result.value());
             }
             return result;
         }
 
-        inline dp::Result<types::Command> tick(const dp::Stamp<types::Feedback> &fb, dp::f64 dt_s) {
+        inline dp::Result<dp::Stamp<types::Command>> tick(const dp::Stamp<types::Feedback> &fb) {
             update(fb.value);
+
+            dp::f64 dt_s = 0.0;
+            if (last_fb_timestamp_ns_.has_value()) {
+                const auto dts = static_cast<dp::f64>(fb.timestamp - *last_fb_timestamp_ns_) * 1e-9;
+                if (dts > 0.0 && dts < 1.0) {
+                    dt_s = dts;
+                }
+            }
+            last_fb_timestamp_ns_ = fb.timestamp;
+
             types::Command out;
-            out.timestamp_ns = fb.timestamp;
             if (twist.has_value()) {
                 auto s = static_cast<dp::f64>(model_.runtime.speed_scale);
-                out.valid = true;
                 out.twist.linear = twist->linear * s;
                 out.twist.angular = twist->angular * s;
-                return dp::Result<types::Command>::ok(out);
+                return dp::Result<dp::Stamp<types::Command>>::ok(dp::Stamp<types::Command>{fb.timestamp, out});
             }
             if (!tracker_) {
-                return dp::Result<types::Command>::err(dp::Error::invalid_argument("drivekit not attached"));
+                return dp::Result<dp::Stamp<types::Command>>::err(dp::Error::invalid_argument("drivekit not attached"));
             }
             drivekit::RobotState st;
             st.pose = fb.value.pose;
@@ -99,13 +109,12 @@ namespace agent47 {
             st.velocity.linear = fb.value.twist.linear.vx;
             st.velocity.angular = fb.value.twist.angular.vz;
             auto cmd = tracker_->tick(st, static_cast<dp::f32>(dt_s), nullptr);
-            out.valid = cmd.valid;
             if (cmd.valid) {
                 auto s = static_cast<dp::f64>(model_.runtime.speed_scale);
                 out.twist.linear.vx = cmd.linear_velocity * s;
                 out.twist.angular.vz = cmd.angular_velocity * s;
             }
-            return dp::Result<types::Command>::ok(out);
+            return dp::Result<dp::Stamp<types::Command>>::ok(dp::Stamp<types::Command>{fb.timestamp, out});
         }
 
         inline drivekit::Tracker *drivekit_tracker() { return tracker_ ? &(*tracker_) : nullptr; }

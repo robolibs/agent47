@@ -1,0 +1,179 @@
+<?xml version="1.0"?>
+<!--
+Generated from /doc/ares/flatsim/examples/machines/tractor.json
+
+Conventions:
+- Base frame: base_link
+- X forward, Y left, Z up (URDF standard)
+- wheels are modeled as cylinders for both visual/collision
+- <sensor> blocks are left empty for now (tractor.json has no sensors)
+-->
+<robot name="john_deere_8r">
+
+  <link name="base_link">
+    <visual>
+      <!-- base_link is on ground plane (z=0); lift chassis by half height -->
+      <origin xyz="0 0 1.4" rpy="0 0 0"/>
+      <geometry>
+        <!-- approximate footprint (width x length x height) -->
+        <box size="1.6 2.94 2.8"/>
+      </geometry>
+      <material name="tractor_color">
+        <color rgba="0.0 1.0 0.392 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 1.4" rpy="0 0 0"/>
+      <geometry>
+        <box size="1.6 2.94 2.8"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- Wheels -->
+
+  <link name="front_right_wheel">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="0.42" length="0.352"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="0.42" length="0.352"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="front_right_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="front_right_wheel"/>
+    <!-- base_link is on ground plane (z=0), axle at wheel radius -->
+    <origin xyz="0.8 0.84 0.42" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <link name="front_left_wheel">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="0.42" length="0.352"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="0.42" length="0.352"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="front_left_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="front_left_wheel"/>
+    <!-- base_link is on ground plane (z=0), axle at wheel radius -->
+    <origin xyz="-0.8 0.84 0.42" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <link name="rear_right_wheel">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="0.7" length="0.64"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="0.7" length="0.64"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="rear_right_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="rear_right_wheel"/>
+    <!-- base_link is on ground plane (z=0), axle at wheel radius -->
+    <origin xyz="0.8 -0.84 0.7" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <link name="rear_left_wheel">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="0.7" length="0.64"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="0.7" length="0.64"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="rear_left_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="rear_left_wheel"/>
+    <!-- base_link is on ground plane (z=0), axle at wheel radius -->
+    <origin xyz="-0.8 -0.84 0.7" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <!-- Karosseries (simple fixed links) -->
+
+  <link name="front_karosserie">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.8 0.14 0.2"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="front_karosserie_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="front_karosserie"/>
+    <origin xyz="0 1.47 0" rpy="0 0 0"/>
+  </joint>
+
+  <link name="hitch_mount">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.24 0.28 0.2"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="hitch_mount_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="hitch_mount"/>
+    <origin xyz="0 -1.47 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Hitches -->
+
+  <link name="rear_hitch">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.05 0.05 0.05"/>
+      </geometry>
+    </visual>
+
+    <!-- Placeholder sensor container (none defined in the source JSON) -->
+    <!-- Example:
+    <sensor name="rear_camera">
+      <origin xyz="0 0 1.2" rpy="0 0 0"/>
+      <camera>
+        <image width="1280" height="720" format="R8G8B8" hfov="1.0" near="0.1" far="200"/>
+      </camera>
+    </sensor>
+    -->
+  </link>
+  <joint name="rear_hitch_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="rear_hitch"/>
+    <origin xyz="0 -1.47 0" rpy="0 0 0"/>
+  </joint>
+
+</robot>

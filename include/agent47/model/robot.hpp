@@ -93,7 +93,6 @@ namespace agent47 {
         /// consumed by planning/control modules.
         struct Robot : public Entity {
             Identity identity;
-            dp::Geo datum;
             Runtime runtime;
             Body body;
         };

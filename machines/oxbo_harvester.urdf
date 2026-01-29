@@ -1,0 +1,159 @@
+<?xml version="1.0"?>
+<!-- Generated from /doc/ares/flatsim/examples/machines/oxbo_harvester.json -->
+<robot name="oxbo_2475">
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 3.84" rpy="0 0 0"/>
+      <geometry>
+        <box size="2.8 9.4464 7.68"/>
+      </geometry>
+      <material name="oxbo_color">
+        <color rgba="1.0 0.784 0.0 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 3.84" rpy="0 0 0"/>
+      <geometry>
+        <box size="2.8 9.4464 7.68"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- Wheels (radius=0.768, length=0.7). base_link is on ground plane -->
+
+  <link name="front_right_wheel">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="0.768" length="0.7"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="front_right_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="front_right_wheel"/>
+    <origin xyz="1.4 2.304 0.768" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <link name="front_left_wheel">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="0.768" length="0.7"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="front_left_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="front_left_wheel"/>
+    <origin xyz="-1.4 2.304 0.768" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <link name="middle_right_wheel">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="0.768" length="0.7"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="middle_right_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="middle_right_wheel"/>
+    <origin xyz="1.4 0.1 0.768" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <link name="middle_left_wheel">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="0.768" length="0.7"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="middle_left_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="middle_left_wheel"/>
+    <origin xyz="-1.4 0.1 0.768" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <link name="rear_right_wheel">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="0.768" length="0.7"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="rear_right_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="rear_right_wheel"/>
+    <origin xyz="1.4 -2.688 0.768" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <link name="rear_left_wheel">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="0.768" length="0.7"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="rear_left_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="rear_left_wheel"/>
+    <origin xyz="-1.4 -2.688 0.768" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <!-- Karosseries -->
+  <link name="front">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="3.528 1.7664 0.8"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="front_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="front"/>
+    <origin xyz="0 4.7232 0" rpy="0 0 0"/>
+  </joint>
+
+  <link name="back">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="2.52 1.152 0.8"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="back_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="back"/>
+    <origin xyz="0 -4.416 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Tank -->
+  <link name="harvest_bin">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="1.68 2.24 0.8"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="harvest_bin_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="harvest_bin"/>
+    <origin xyz="0 2.24 0" rpy="0 0 0"/>
+  </joint>
+
+</robot>

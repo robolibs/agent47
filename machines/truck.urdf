@@ -1,0 +1,183 @@
+<?xml version="1.0"?>
+<!-- Generated from /doc/ares/flatsim/examples/machines/truck.json -->
+<robot name="cargo_truck_8x8">
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 4" rpy="0 0 0"/>
+      <geometry>
+        <box size="2.5 10.0 8.0"/>
+      </geometry>
+      <material name="truck_color">
+        <color rgba="0.392 0.392 1.0 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 4" rpy="0 0 0"/>
+      <geometry>
+        <box size="2.5 10.0 8.0"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- Wheels (radius=0.48, length=0.45). base_link is on ground plane -->
+
+  <!-- front_right_1 -->
+  <link name="front_right_1_wheel">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="0.48" length="0.45"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="front_right_1_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="front_right_1_wheel"/>
+    <origin xyz="1.25 5.0 0.48" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <!-- front_left_1 -->
+  <link name="front_left_1_wheel">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="0.48" length="0.45"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="front_left_1_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="front_left_1_wheel"/>
+    <origin xyz="-1.25 5.0 0.48" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <!-- middle_right -->
+  <link name="middle_right_wheel">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="0.48" length="0.45"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="middle_right_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="middle_right_wheel"/>
+    <origin xyz="1.25 2.4 0.48" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <!-- middle_left -->
+  <link name="middle_left_wheel">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="0.48" length="0.45"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="middle_left_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="middle_left_wheel"/>
+    <origin xyz="-1.25 2.4 0.48" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <!-- rear_right_1 -->
+  <link name="rear_right_1_wheel">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="0.48" length="0.45"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="rear_right_1_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="rear_right_1_wheel"/>
+    <origin xyz="1.25 -1.6 0.48" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <!-- rear_left_1 -->
+  <link name="rear_left_1_wheel">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="0.48" length="0.45"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="rear_left_1_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="rear_left_1_wheel"/>
+    <origin xyz="-1.25 -1.6 0.48" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <!-- rear_right_2 -->
+  <link name="rear_right_2_wheel">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="0.48" length="0.45"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="rear_right_2_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="rear_right_2_wheel"/>
+    <origin xyz="1.25 -2.8 0.48" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <!-- rear_left_2 -->
+  <link name="rear_left_2_wheel">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.57079632679 0"/>
+      <geometry>
+        <cylinder radius="0.48" length="0.45"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="rear_left_2_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="rear_left_2_wheel"/>
+    <origin xyz="-1.25 -2.8 0.48" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <!-- Cabin -->
+  <link name="cabin">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="2.625 2.0 0.8"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="cabin_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="cabin"/>
+    <origin xyz="0 5.0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Cargo bed -->
+  <link name="cargo_bed">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="2.25 7.6 0.8"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="cargo_bed_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="cargo_bed"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+</robot>

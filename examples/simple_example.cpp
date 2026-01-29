@@ -46,7 +46,6 @@ namespace {
 } // namespace
 
 int main() {
-#ifdef AGENT47_HAS_ROS2
 
     agent47::model::Robot model;
     model.identity.uuid = "robot_0";
@@ -78,7 +77,8 @@ int main() {
         dp::f64 dt_s = PUBLISH_DT_S;
 
         dp::Stamp<agent47::types::Feedback> fb;
-        if (ros.recv(fb, 0)) {
+        const bool have_fb = ros.recv(fb, 0);
+        if (have_fb) {
             if (have_last) {
                 const auto dts = static_cast<dp::f64>(fb.timestamp - last_ts_ns) * 1e-9;
                 if (dts > 0.0 && dts < 1.0) {
@@ -138,14 +138,12 @@ int main() {
         }
 
         agent.set_velocity(teleop);
-        // Always publish the latest commanded twist (if any).
-        (void)agent.tick(dt_s);
+        if (have_fb) {
+            (void)agent.tick(fb);
+        }
 
         std::this_thread::sleep_for(std::chrono::duration<double>(PUBLISH_DT_S));
     }
 
-#else
-    echo("AGENT47_HAS_ROS2 is not enabled");
-#endif
     return 0;
 }
