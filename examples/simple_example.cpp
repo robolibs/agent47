@@ -47,16 +47,14 @@ namespace {
 
 int main() {
 
-    agent47::model::Robot model;
-    model.identity.uuid = "robot_0";
-    model.identity.name = "turtle1";
-    model.identity.type = "diff_drive";
-
-    model.body.steering_type = agent47::model::SteeringType::ACKERMANN;
+    agent47::robot::Robot robot;
+    robot.model.identity.uuid = "robot_0";
+    robot.model.identity.name = "turtle1";
+    robot.model.identity.ns = "/turtle1";
 
     agent47::Ros2Bridge ros;
-    ros.connect(model.identity);
-    agent47::Agent agent(model, &ros);
+    ros.connect(robot.model.identity);
+    agent47::Agent agent(robot, &ros);
 
     TerminalRawMode raw;
     if (!raw.active) {

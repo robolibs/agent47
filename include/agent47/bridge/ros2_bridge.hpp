@@ -19,7 +19,7 @@
     #include <turtlesim/msg/pose.hpp>
 
     #include "agent47/bridge.hpp"
-    #include "agent47/model/robot.hpp"
+    #include "agent47/robot/model.hpp"
     #include "agent47/sensors/gnss.hpp"
     #include "agent47/sensors/imu.hpp"
     #include "agent47/sensors/lidar.hpp"
@@ -45,14 +45,14 @@ namespace agent47 {
         /// Uses identity.name as the namespace root.
         /// - "turtle1" -> topics like "/turtle1/pose", "/turtle1/cmd_vel"
         /// - "/turtle1" -> same (leading slash kept)
-        bool connect(const model::Identity &id) {
+        bool connect(const robot::Identity &id) {
             if (id.name.empty()) {
                 return connect("/");
             }
-            if (id.name[0] == '/') {
-                return connect(id.name);
+            if (!id.name.empty() && id.name[0] == '/') {
+                return connect(id.name.c_str());
             }
-            return connect(std::string("/") + id.name);
+            return connect(std::string("/") + id.name.c_str());
         }
 
         bool connect(const std::string &ns) override {
