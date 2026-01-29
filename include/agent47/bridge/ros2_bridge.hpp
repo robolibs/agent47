@@ -72,25 +72,25 @@ namespace agent47 {
                     std::lock_guard<std::mutex> lock(fb_mutex_);
                     const auto ns = static_cast<dp::i64>(msg->header.stamp.sec) * 1'000'000'000LL +
                                     static_cast<dp::i64>(msg->header.stamp.nanosec);
-                    last_fb_.stamp_s = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
-                    last_fb_.tick_seq++;
-                    last_fb_.pose.point.x = msg->pose.pose.position.x;
-                    last_fb_.pose.point.y = msg->pose.pose.position.y;
-                    last_fb_.pose.point.z = msg->pose.pose.position.z;
-                    last_fb_.pose.rotation.w = msg->pose.pose.orientation.w;
-                    last_fb_.pose.rotation.x = msg->pose.pose.orientation.x;
-                    last_fb_.pose.rotation.y = msg->pose.pose.orientation.y;
-                    last_fb_.pose.rotation.z = msg->pose.pose.orientation.z;
-                    last_fb_.twist.linear.vx = msg->twist.twist.linear.x;
-                    last_fb_.twist.linear.vy = msg->twist.twist.linear.y;
-                    last_fb_.twist.linear.vz = msg->twist.twist.linear.z;
-                    last_fb_.twist.angular.vx = msg->twist.twist.angular.x;
-                    last_fb_.twist.angular.vy = msg->twist.twist.angular.y;
-                    last_fb_.twist.angular.vz = msg->twist.twist.angular.z;
+                    last_fb_.timestamp = ns;
+                    last_fb_.value.tick_seq++;
+                    last_fb_.value.pose.point.x = msg->pose.pose.position.x;
+                    last_fb_.value.pose.point.y = msg->pose.pose.position.y;
+                    last_fb_.value.pose.point.z = msg->pose.pose.position.z;
+                    last_fb_.value.pose.rotation.w = msg->pose.pose.orientation.w;
+                    last_fb_.value.pose.rotation.x = msg->pose.pose.orientation.x;
+                    last_fb_.value.pose.rotation.y = msg->pose.pose.orientation.y;
+                    last_fb_.value.pose.rotation.z = msg->pose.pose.orientation.z;
+                    last_fb_.value.twist.linear.vx = msg->twist.twist.linear.x;
+                    last_fb_.value.twist.linear.vy = msg->twist.twist.linear.y;
+                    last_fb_.value.twist.linear.vz = msg->twist.twist.linear.z;
+                    last_fb_.value.twist.angular.vx = msg->twist.twist.angular.x;
+                    last_fb_.value.twist.angular.vy = msg->twist.twist.angular.y;
+                    last_fb_.value.twist.angular.vz = msg->twist.twist.angular.z;
                     fb_ready_ = true;
 
-                    last_pose_ = dp::Stamp<dp::Pose>{ns, last_fb_.pose};
-                    last_twist_ = dp::Stamp<dp::Twist>{ns, last_fb_.twist};
+                    last_pose_ = dp::Stamp<dp::Pose>{ns, last_fb_.value.pose};
+                    last_twist_ = dp::Stamp<dp::Twist>{ns, last_fb_.value.twist};
                     pose_ready_ = true;
                     twist_ready_ = true;
                 });
@@ -102,24 +102,25 @@ namespace agent47 {
                     const auto ns = static_cast<dp::i64>(node_->now().nanoseconds());
 
                     // turtlesim provides planar pose + yaw + linear/angular velocity.
-                    last_fb_.tick_seq++;
-                    last_fb_.pose.point.x = static_cast<dp::f64>(msg->x);
-                    last_fb_.pose.point.y = static_cast<dp::f64>(msg->y);
-                    last_fb_.pose.point.z = 0.0;
-                    last_fb_.pose.rotation =
+                    last_fb_.timestamp = ns;
+                    last_fb_.value.tick_seq++;
+                    last_fb_.value.pose.point.x = static_cast<dp::f64>(msg->x);
+                    last_fb_.value.pose.point.y = static_cast<dp::f64>(msg->y);
+                    last_fb_.value.pose.point.z = 0.0;
+                    last_fb_.value.pose.rotation =
                         datapod::Quaternion::from_euler(0.0, 0.0, static_cast<dp::f64>(msg->theta));
 
-                    last_fb_.twist.linear.vx = static_cast<dp::f64>(msg->linear_velocity);
-                    last_fb_.twist.linear.vy = 0.0;
-                    last_fb_.twist.linear.vz = 0.0;
-                    last_fb_.twist.angular.vx = 0.0;
-                    last_fb_.twist.angular.vy = 0.0;
-                    last_fb_.twist.angular.vz = static_cast<dp::f64>(msg->angular_velocity);
+                    last_fb_.value.twist.linear.vx = static_cast<dp::f64>(msg->linear_velocity);
+                    last_fb_.value.twist.linear.vy = 0.0;
+                    last_fb_.value.twist.linear.vz = 0.0;
+                    last_fb_.value.twist.angular.vx = 0.0;
+                    last_fb_.value.twist.angular.vy = 0.0;
+                    last_fb_.value.twist.angular.vz = static_cast<dp::f64>(msg->angular_velocity);
 
                     fb_ready_ = true;
 
-                    last_pose_ = dp::Stamp<dp::Pose>{ns, last_fb_.pose};
-                    last_twist_ = dp::Stamp<dp::Twist>{ns, last_fb_.twist};
+                    last_pose_ = dp::Stamp<dp::Pose>{ns, last_fb_.value.pose};
+                    last_twist_ = dp::Stamp<dp::Twist>{ns, last_fb_.value.twist};
                     pose_ready_ = true;
                     twist_ready_ = true;
                 });
@@ -127,11 +128,11 @@ namespace agent47 {
             joint_sub_ = node_->create_subscription<sensor_msgs::msg::JointState>(
                 "joint_states", 10, [this](sensor_msgs::msg::JointState::SharedPtr msg) {
                     std::lock_guard<std::mutex> lock(fb_mutex_);
-                    last_fb_.wheels.resize(msg->position.size());
+                    last_fb_.value.wheels.resize(msg->position.size());
                     for (dp::usize i = 0; i < msg->position.size(); ++i) {
-                        last_fb_.wheels[i].angle_rad = msg->position[i];
+                        last_fb_.value.wheels[i].angle_rad = msg->position[i];
                         if (i < msg->velocity.size()) {
-                            last_fb_.wheels[i].speed_rps = msg->velocity[i];
+                            last_fb_.value.wheels[i].speed_rps = msg->velocity[i];
                         }
                     }
                 });
@@ -230,22 +231,22 @@ namespace agent47 {
 
         bool is_connected() const override { return node_ != nullptr && rclcpp::ok(); }
 
-        bool send(const types::Command &cmd) override {
+        bool send(const dp::Stamp<types::Command> &cmd) override {
             if (!cmd_pub_) {
                 return false;
             }
             geometry_msgs::msg::Twist twist;
-            twist.linear.x = cmd.twist.linear.vx;
-            twist.linear.y = cmd.twist.linear.vy;
-            twist.linear.z = cmd.twist.linear.vz;
-            twist.angular.x = cmd.twist.angular.vx;
-            twist.angular.y = cmd.twist.angular.vy;
-            twist.angular.z = cmd.twist.angular.vz;
+            twist.linear.x = cmd.value.twist.linear.vx;
+            twist.linear.y = cmd.value.twist.linear.vy;
+            twist.linear.z = cmd.value.twist.linear.vz;
+            twist.angular.x = cmd.value.twist.angular.vx;
+            twist.angular.y = cmd.value.twist.angular.vy;
+            twist.angular.z = cmd.value.twist.angular.vz;
             cmd_pub_->publish(twist);
             return true;
         }
 
-        bool recv(types::Feedback &fb, dp::i32 /*timeout_ms*/ = 100) override {
+        bool recv(dp::Stamp<types::Feedback> &fb, dp::i32 /*timeout_ms*/ = 100) override {
             if (!node_) {
                 return false;
             }
@@ -333,7 +334,7 @@ namespace agent47 {
         rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_pub_;
 
         mutable std::mutex fb_mutex_;
-        types::Feedback last_fb_;
+        dp::Stamp<types::Feedback> last_fb_;
         bool fb_ready_ = false;
 
         dp::Stamp<dp::Pose> last_pose_;

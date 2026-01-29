@@ -23,7 +23,6 @@ namespace agent47 {
         /// internal state and pass it to Agent::tick().
         struct Feedback {
             dp::u64 tick_seq = 0;
-            dp::f64 stamp_s = 0.0;
             dp::Pose pose{};
             dp::Twist twist{};
             dp::Vector<WheelState> wheels;
@@ -34,7 +33,7 @@ namespace agent47 {
         /// The base contract is cmd-vel. Lower-level or domain-specific commands can be
         /// added later without breaking existing adapters.
         struct Command {
-            dp::f64 stamp_s = 0.0;
+            dp::i64 timestamp_ns = 0;
             dp::Twist twist{};
             bool valid = false;
         };

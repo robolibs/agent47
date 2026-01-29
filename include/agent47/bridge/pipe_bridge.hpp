@@ -55,7 +55,7 @@ namespace agent47 {
             // Backend calls us on AGENT47_METHOD_FEEDBACK with serialised Feedback.
             rpc_->register_method(AGENT47_METHOD_FEEDBACK,
                                   [this](const netpipe::Message &msg) -> dp::Res<netpipe::Message> {
-                                      types::Feedback fb;
+                                      dp::Stamp<types::Feedback> fb;
                                       if (deserialize_feedback(msg, fb)) {
                                           std::lock_guard<std::mutex> lock(fb_mutex_);
                                           last_fb_ = std::move(fb);
@@ -78,7 +78,7 @@ namespace agent47 {
 
         bool is_connected() const override { return pipe_.has_value() && pipe_->is_connected(); }
 
-        bool send(const types::Command &cmd) override {
+        bool send(const dp::Stamp<types::Command> &cmd) override {
             if (!rpc_ || !is_connected()) {
                 return false;
             }
@@ -87,7 +87,7 @@ namespace agent47 {
             return res.is_ok();
         }
 
-        bool recv(types::Feedback &fb, dp::i32 timeout_ms = 100) override {
+        bool recv(dp::Stamp<types::Feedback> &fb, dp::i32 timeout_ms = 100) override {
             std::unique_lock<std::mutex> lock(fb_mutex_);
             if (!fb_ready_) {
                 fb_cv_.wait_for(lock, std::chrono::milliseconds(timeout_ms), [this] { return fb_ready_; });
@@ -106,7 +106,7 @@ namespace agent47 {
 
         mutable std::mutex fb_mutex_;
         std::condition_variable fb_cv_;
-        types::Feedback last_fb_;
+        dp::Stamp<types::Feedback> last_fb_;
         bool fb_ready_ = false;
 
         // ---------------------------------------------------------------------------
@@ -162,22 +162,22 @@ namespace agent47 {
         // ---------------------------------------------------------------------------
         // Command serialisation (agent47 -> backend)
         //
-        // Wire: [stamp_s:8]
+        // Wire: [timestamp_ns:8]
         //       [twist.linear  vx/vy/vz:24]
         //       [twist.angular vx/vy/vz:24]
         //       [valid:1]
         // ---------------------------------------------------------------------------
 
-        static netpipe::Message serialize_command(const types::Command &cmd) {
+        static netpipe::Message serialize_command(const dp::Stamp<types::Command> &cmd) {
             netpipe::Message msg;
-            write_val(msg, cmd.stamp_s);
-            write_val(msg, cmd.twist.linear.vx);
-            write_val(msg, cmd.twist.linear.vy);
-            write_val(msg, cmd.twist.linear.vz);
-            write_val(msg, cmd.twist.angular.vx);
-            write_val(msg, cmd.twist.angular.vy);
-            write_val(msg, cmd.twist.angular.vz);
-            write_val(msg, static_cast<dp::u8>(cmd.valid ? 1 : 0));
+            write_val(msg, static_cast<dp::i64>(cmd.timestamp));
+            write_val(msg, cmd.value.twist.linear.vx);
+            write_val(msg, cmd.value.twist.linear.vy);
+            write_val(msg, cmd.value.twist.linear.vz);
+            write_val(msg, cmd.value.twist.angular.vx);
+            write_val(msg, cmd.value.twist.angular.vy);
+            write_val(msg, cmd.value.twist.angular.vz);
+            write_val(msg, static_cast<dp::u8>(cmd.value.valid ? 1 : 0));
             return msg;
         }
 
@@ -185,7 +185,8 @@ namespace agent47 {
         // Feedback deserialisation (backend -> agent47)
         //
         // Wire layout:
-        //   [tick_seq:8][stamp_s:8]
+        //   [timestamp_ns:8]
+        //   [tick_seq:8]
         //   [pose.point x/y/z:24][pose.rotation w/x/y/z:32]
         //   [twist.linear vx/vy/vz:24][twist.angular vx/vy/vz:24]
         //   [num_wheels:4] { [angle_rad:8][speed_rps:8] } * N
@@ -201,36 +202,36 @@ namespace agent47 {
 
         static constexpr dp::usize FEEDBACK_FIXED_SIZE = 8 + 8 + 24 + 32 + 24 + 24 + 4 + 1; // 125
 
-        static bool deserialize_feedback(const netpipe::Message &msg, types::Feedback &fb) {
+        static bool deserialize_feedback(const netpipe::Message &msg, dp::Stamp<types::Feedback> &fb) {
             if (msg.size() < FEEDBACK_FIXED_SIZE) {
                 return false;
             }
 
             const dp::u8 *ptr = msg.data();
 
-            fb.tick_seq = read_val<dp::u64>(ptr);
-            fb.stamp_s = read_val<dp::f64>(ptr);
+            fb.timestamp = read_val<dp::i64>(ptr);
+            fb.value.tick_seq = read_val<dp::u64>(ptr);
 
-            fb.pose.point.x = read_val<dp::f64>(ptr);
-            fb.pose.point.y = read_val<dp::f64>(ptr);
-            fb.pose.point.z = read_val<dp::f64>(ptr);
-            fb.pose.rotation.w = read_val<dp::f64>(ptr);
-            fb.pose.rotation.x = read_val<dp::f64>(ptr);
-            fb.pose.rotation.y = read_val<dp::f64>(ptr);
-            fb.pose.rotation.z = read_val<dp::f64>(ptr);
+            fb.value.pose.point.x = read_val<dp::f64>(ptr);
+            fb.value.pose.point.y = read_val<dp::f64>(ptr);
+            fb.value.pose.point.z = read_val<dp::f64>(ptr);
+            fb.value.pose.rotation.w = read_val<dp::f64>(ptr);
+            fb.value.pose.rotation.x = read_val<dp::f64>(ptr);
+            fb.value.pose.rotation.y = read_val<dp::f64>(ptr);
+            fb.value.pose.rotation.z = read_val<dp::f64>(ptr);
 
-            fb.twist.linear.vx = read_val<dp::f64>(ptr);
-            fb.twist.linear.vy = read_val<dp::f64>(ptr);
-            fb.twist.linear.vz = read_val<dp::f64>(ptr);
-            fb.twist.angular.vx = read_val<dp::f64>(ptr);
-            fb.twist.angular.vy = read_val<dp::f64>(ptr);
-            fb.twist.angular.vz = read_val<dp::f64>(ptr);
+            fb.value.twist.linear.vx = read_val<dp::f64>(ptr);
+            fb.value.twist.linear.vy = read_val<dp::f64>(ptr);
+            fb.value.twist.linear.vz = read_val<dp::f64>(ptr);
+            fb.value.twist.angular.vx = read_val<dp::f64>(ptr);
+            fb.value.twist.angular.vy = read_val<dp::f64>(ptr);
+            fb.value.twist.angular.vz = read_val<dp::f64>(ptr);
 
             dp::u32 num_wheels = read_val<dp::u32>(ptr);
-            fb.wheels.resize(num_wheels);
+            fb.value.wheels.resize(num_wheels);
             for (dp::u32 i = 0; i < num_wheels; ++i) {
-                fb.wheels[i].angle_rad = read_val<dp::f64>(ptr);
-                fb.wheels[i].speed_rps = read_val<dp::f64>(ptr);
+                fb.value.wheels[i].angle_rad = read_val<dp::f64>(ptr);
+                fb.value.wheels[i].speed_rps = read_val<dp::f64>(ptr);
             }
             dp::u8 flags = read_val<dp::u8>(ptr);
             return true;

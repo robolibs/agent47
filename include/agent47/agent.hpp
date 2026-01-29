@@ -11,6 +11,8 @@
 #include <datapod/pods/adapters/optional.hpp>
 #include <datapod/pods/adapters/result.hpp>
 
+#include <datapod/pods/temporal/stamp.hpp>
+
 #include "agent47/bridge.hpp"
 #include "agent47/model/robot.hpp"
 #include "agent47/types.hpp"
@@ -56,30 +58,31 @@ namespace agent47 {
         }
 
         inline dp::Result<types::Command> tick(dp::f64 dt_s) {
-            types::Feedback fb;
+            dp::Stamp<types::Feedback> fb;
             bool have_fb = false;
             if (bridge_) {
                 have_fb = bridge_->recv(fb);
             }
             if (!have_fb) {
-                fb.pose = model_.runtime.pose;
-                fb.twist = model_.runtime.twist;
+                fb.timestamp = dp::Stamp<types::Feedback>::now();
+                fb.value.pose = model_.runtime.pose;
+                fb.value.twist = model_.runtime.twist;
             }
             auto result = tick(fb, dt_s);
 
-            echo::trace("Pose: ", fb.pose);
-            echo::trace("Twist: ", fb.twist);
+            echo::trace("Pose: ", fb.value.pose);
+            echo::trace("Twist: ", fb.value.twist);
 
             if (bridge_ && result.is_ok()) {
-                bridge_->send(result.value());
+                bridge_->send(dp::Stamp<types::Command>{fb.timestamp, result.value()});
             }
             return result;
         }
 
-        inline dp::Result<types::Command> tick(const types::Feedback &fb, dp::f64 dt_s) {
-            update(fb);
+        inline dp::Result<types::Command> tick(const dp::Stamp<types::Feedback> &fb, dp::f64 dt_s) {
+            update(fb.value);
             types::Command out;
-            out.stamp_s = fb.stamp_s;
+            out.timestamp_ns = fb.timestamp;
             if (twist.has_value()) {
                 auto s = static_cast<dp::f64>(model_.runtime.speed_scale);
                 out.valid = true;
@@ -91,12 +94,12 @@ namespace agent47 {
                 return dp::Result<types::Command>::err(dp::Error::invalid_argument("drivekit not attached"));
             }
             drivekit::RobotState st;
-            st.pose = fb.pose;
+            st.pose = fb.value.pose;
             st.allow_move = model_.runtime.allow_move;
             st.allow_reverse = model_.runtime.allow_reverse;
-            st.timestamp = fb.stamp_s;
-            st.velocity.linear = fb.twist.linear.vx;
-            st.velocity.angular = fb.twist.angular.vz;
+            st.timestamp = static_cast<dp::f64>(fb.timestamp) * 1e-9;
+            st.velocity.linear = fb.value.twist.linear.vx;
+            st.velocity.angular = fb.value.twist.angular.vz;
             auto cmd = tracker_->tick(st, static_cast<dp::f32>(dt_s), nullptr);
             out.valid = cmd.valid;
             if (cmd.valid) {
