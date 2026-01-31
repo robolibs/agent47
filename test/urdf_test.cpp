@@ -34,22 +34,25 @@ TEST_CASE("urdf: parses basic model and captures extensions") {
     auto parsed = robomod::from_urdf_string(xml);
     REQUIRE(parsed.is_ok());
 
-    const auto &u = parsed.value();
+    const auto &m = parsed.value();
 
-    CHECK(u.model.links.size() == 2);
-    CHECK(u.model.joints.size() == 1);
-    CHECK(u.model.root != datapod::robot::kInvalidId);
-    CHECK(u.model.links[u.model.root].name == datapod::String("base_link"));
+    CHECK(m.links.size() == 2);
+    CHECK(m.joints.size() == 1);
+    CHECK(m.root != datapod::robot::kInvalidId);
+    CHECK(m.links[m.root].name == datapod::String("base_link"));
 
-    // Extensions captured at the right scope
-    CHECK(u.ext.robot.size() == 1);
-    CHECK(u.ext.links.find(dp::String("base_link")) != u.ext.links.end());
-    CHECK(u.ext.joints.find(dp::String("wheel_joint")) != u.ext.joints.end());
+    // Props: robot-level
+    CHECK(m.props.find(datapod::String("flatsim.turning.radius")) != m.props.end());
+    CHECK(m.props.at(datapod::String("flatsim.turning.radius")) == datapod::String("1.23"));
 
-    // Spot-check content contains tag name
-    CHECK(u.ext.robot[0].find("flatsim") != dp::String::npos);
-    CHECK(u.ext.links.at(dp::String("base_link"))[0].find("flatsim") != dp::String::npos);
-    CHECK(u.ext.joints.at(dp::String("wheel_joint"))[0].find("throttle_max") != dp::String::npos);
+    // Props: link-level
+    CHECK(m.links[m.root].props.find(datapod::String("flatsim.link_tag")) != m.links[m.root].props.end());
+    CHECK(m.links[m.root].props.at(datapod::String("flatsim.link_tag")) == datapod::String("base"));
+
+    // Props: joint-level
+    CHECK(m.joints[0].props.find(datapod::String("flatsim.side")) != m.joints[0].props.end());
+    CHECK(m.joints[0].props.at(datapod::String("flatsim.side")) == datapod::String("left"));
+    CHECK(m.joints[0].props.find(datapod::String("flatsim.throttle_max")) != m.joints[0].props.end());
 }
 
 TEST_CASE("urdf: parses joint limits and dynamics") {
@@ -71,7 +74,7 @@ TEST_CASE("urdf: parses joint limits and dynamics") {
     auto parsed = robomod::from_urdf_string(xml);
     REQUIRE(parsed.is_ok());
 
-    const auto &m = parsed.value().model;
+    const auto &m = parsed.value();
     REQUIRE(m.joints.size() == 1);
 
     CHECK(m.joints[0].limits.has_value());
