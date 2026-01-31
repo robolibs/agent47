@@ -20,6 +20,7 @@
 #include <cstring>
 
 #include <memory>
+#include <unordered_map>
 
 #include <datapod/adapters.hpp>
 #include <datapod/pods/adapters/error.hpp>
@@ -32,6 +33,17 @@
 #include "tinyxml/txml.h"
 
 namespace robomod {
+
+    struct UrdfExtensions {
+        dp::Vector<dp::String> robot;
+        std::unordered_map<dp::String, dp::Vector<dp::String>> links;
+        std::unordered_map<dp::String, dp::Vector<dp::String>> joints;
+    };
+
+    struct Urdf {
+        datapod::robot::Model model;
+        UrdfExtensions ext;
+    };
 
     // ---------------------------------------------------------------------------------------------
     // Small helpers
@@ -184,7 +196,7 @@ namespace robomod {
         dp::Optional<JointDynamics> dynamics;
     };
 
-    static dp::Result<datapod::robot::Model> from_urdf_string(const dp::String &xml);
+    static dp::Result<Urdf> from_urdf_string(const dp::String &xml);
 
     // ---------------------------------------------------------------------------------------------
     // Parsing
@@ -767,22 +779,70 @@ namespace robomod {
         return dp::Result<datapod::robot::Model>::ok(out);
     }
 
-    inline dp::Result<datapod::robot::Model> from_urdf_string(const dp::String &xml) {
+    static inline dp::String element_to_xml(TiXmlElement *el) {
+        if (!el) {
+            return dp::String("");
+        }
+        TiXmlPrinter printer;
+        el->Accept(&printer);
+        return dp_string(printer.CStr());
+    }
+
+    static inline void collect_robot_extensions(UrdfExtensions &ext, TiXmlElement *robot_xml) {
+        for (TiXmlElement *child = robot_xml ? robot_xml->FirstChildElement() : nullptr; child;
+             child = child->NextSiblingElement()) {
+            const dp::String tag = dp_string(child->Value());
+            if (tag == "link" || tag == "joint" || tag == "material") {
+                continue;
+            }
+            ext.robot.push_back(element_to_xml(child));
+        }
+    }
+
+    static inline void collect_link_extensions(UrdfExtensions &ext, const dp::String &link_name,
+                                               TiXmlElement *link_xml) {
+        for (TiXmlElement *child = link_xml ? link_xml->FirstChildElement() : nullptr; child;
+             child = child->NextSiblingElement()) {
+            const dp::String tag = dp_string(child->Value());
+            if (tag == "inertial" || tag == "visual" || tag == "collision") {
+                continue;
+            }
+            ext.links[link_name].push_back(element_to_xml(child));
+        }
+    }
+
+    static inline void collect_joint_extensions(UrdfExtensions &ext, const dp::String &joint_name,
+                                                TiXmlElement *joint_xml) {
+        for (TiXmlElement *child = joint_xml ? joint_xml->FirstChildElement() : nullptr; child;
+             child = child->NextSiblingElement()) {
+            const dp::String tag = dp_string(child->Value());
+            if (tag == "origin" || tag == "parent" || tag == "child" || tag == "axis" || tag == "limit" ||
+                tag == "dynamics" || tag == "mimic" || tag == "safety_controller" || tag == "calibration") {
+                continue;
+            }
+            ext.joints[joint_name].push_back(element_to_xml(child));
+        }
+    }
+
+    inline dp::Result<Urdf> from_urdf_string(const dp::String &xml) {
         TiXmlDocument doc;
         doc.Parse(xml.c_str());
         if (doc.Error()) {
-            return dp::Result<datapod::robot::Model>::err(dp::Error::invalid_argument("invalid xml"));
+            return dp::Result<Urdf>::err(dp::Error::invalid_argument("invalid xml"));
         }
 
         TiXmlElement *robot = doc.FirstChildElement("robot");
         if (!robot) {
-            return dp::Result<datapod::robot::Model>::err(dp::Error::invalid_argument("missing <robot>"));
+            return dp::Result<Urdf>::err(dp::Error::invalid_argument("missing <robot>"));
         }
 
         dp::String robot_name = dp_string(robot->Attribute("name"));
         if (robot_name.empty()) {
-            return dp::Result<datapod::robot::Model>::err(dp::Error::invalid_argument("robot missing name"));
+            return dp::Result<Urdf>::err(dp::Error::invalid_argument("robot missing name"));
         }
+
+        Urdf out;
+        collect_robot_extensions(out.ext, robot);
 
         dp::Vector<Link> links;
         dp::Vector<Joint> joints;
@@ -790,34 +850,38 @@ namespace robomod {
         for (TiXmlElement *link = robot->FirstChildElement("link"); link; link = link->NextSiblingElement("link")) {
             auto parsed = parse_link(link);
             if (parsed.is_err()) {
-                return dp::Result<datapod::robot::Model>::err(parsed.error());
+                return dp::Result<Urdf>::err(parsed.error());
             }
+            collect_link_extensions(out.ext, parsed.value().name, link);
             links.push_back(parsed.value());
         }
         if (links.empty()) {
-            return dp::Result<datapod::robot::Model>::err(dp::Error::invalid_argument("no links"));
+            return dp::Result<Urdf>::err(dp::Error::invalid_argument("no links"));
         }
 
         for (TiXmlElement *joint = robot->FirstChildElement("joint"); joint;
              joint = joint->NextSiblingElement("joint")) {
             auto parsed = parse_joint(joint);
             if (parsed.is_err()) {
-                return dp::Result<datapod::robot::Model>::err(parsed.error());
+                return dp::Result<Urdf>::err(parsed.error());
             }
+            collect_joint_extensions(out.ext, parsed.value().name, joint);
             joints.push_back(parsed.value());
         }
 
         auto root = find_root_link(links, joints);
         if (root.is_err()) {
-            return dp::Result<datapod::robot::Model>::err(root.error());
+            return dp::Result<Urdf>::err(root.error());
         }
 
         auto dp_model = build_dp_model(root.value(), links, joints);
         if (dp_model.is_err()) {
-            return dp::Result<datapod::robot::Model>::err(dp_model.error());
+            return dp::Result<Urdf>::err(dp_model.error());
         }
 
-        return dp::Result<datapod::robot::Model>::ok(dp_model.value());
+        out.model = dp_model.value();
+
+        return dp::Result<Urdf>::ok(out);
     }
 
 } // namespace robomod
