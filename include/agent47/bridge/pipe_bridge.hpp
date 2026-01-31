@@ -1,7 +1,6 @@
 #pragma once
 
 #include <condition_variable>
-#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <mutex>
@@ -14,8 +13,8 @@
 namespace agent47 {
 
     // Protocol method IDs shared between agent47 and any netpipe backend.
-    static constexpr uint32_t AGENT47_METHOD_COMMAND = 1;  // agent47 -> backend
-    static constexpr uint32_t AGENT47_METHOD_FEEDBACK = 2; // backend -> agent47
+    static constexpr dp::u32 AGENT47_METHOD_COMMAND = 1;  // agent47 -> backend
+    static constexpr dp::u32 AGENT47_METHOD_FEEDBACK = 2; // backend -> agent47
 
     /// Bridge implementation using netpipe::Pipe + netpipe::Remote<Bidirect>.
     ///
@@ -56,7 +55,7 @@ namespace agent47 {
             // Backend calls us on AGENT47_METHOD_FEEDBACK with serialised Feedback.
             rpc_->register_method(AGENT47_METHOD_FEEDBACK,
                                   [this](const netpipe::Message &msg) -> dp::Res<netpipe::Message> {
-                                      types::Feedback fb;
+                                      dp::Stamp<types::Feedback> fb;
                                       if (deserialize_feedback(msg, fb)) {
                                           std::lock_guard<std::mutex> lock(fb_mutex_);
                                           last_fb_ = std::move(fb);
@@ -79,7 +78,7 @@ namespace agent47 {
 
         bool is_connected() const override { return pipe_.has_value() && pipe_->is_connected(); }
 
-        bool send(const types::Command &cmd) override {
+        bool send(const dp::Stamp<types::Command> &cmd) override {
             if (!rpc_ || !is_connected()) {
                 return false;
             }
@@ -88,7 +87,7 @@ namespace agent47 {
             return res.is_ok();
         }
 
-        bool recv(types::Feedback &fb, int timeout_ms = 100) override {
+        bool recv(dp::Stamp<types::Feedback> &fb, dp::i32 timeout_ms = 100) override {
             std::unique_lock<std::mutex> lock(fb_mutex_);
             if (!fb_ready_) {
                 fb_cv_.wait_for(lock, std::chrono::milliseconds(timeout_ms), [this] { return fb_ready_; });
@@ -107,7 +106,7 @@ namespace agent47 {
 
         mutable std::mutex fb_mutex_;
         std::condition_variable fb_cv_;
-        types::Feedback last_fb_;
+        dp::Stamp<types::Feedback> last_fb_;
         bool fb_ready_ = false;
 
         // ---------------------------------------------------------------------------
@@ -122,7 +121,7 @@ namespace agent47 {
                     return {};
                 }
                 auto host = body.substr(0, colon);
-                auto port = static_cast<uint16_t>(std::stoi(body.substr(colon + 1)));
+                auto port = static_cast<dp::u16>(std::stoi(body.substr(colon + 1)));
                 return netpipe::AnyEndpoint::tcp_endpoint(dp::String(host.c_str()), port);
             }
             if (s.rfind("ipc://", 0) == 0) {
@@ -136,7 +135,7 @@ namespace agent47 {
                     return {};
                 }
                 auto name = body.substr(0, colon);
-                auto size = static_cast<size_t>(std::stoull(body.substr(colon + 1)));
+                auto size = static_cast<dp::usize>(std::stoull(body.substr(colon + 1)));
                 return netpipe::AnyEndpoint::shm_endpoint(dp::String(name.c_str()), size);
             }
             return {};
@@ -147,13 +146,13 @@ namespace agent47 {
         // ---------------------------------------------------------------------------
 
         template <typename T> static void write_val(netpipe::Message &buf, const T &val) {
-            const uint8_t *p = reinterpret_cast<const uint8_t *>(&val);
-            for (size_t i = 0; i < sizeof(T); ++i) {
+            const dp::u8 *p = reinterpret_cast<const dp::u8 *>(&val);
+            for (dp::usize i = 0; i < sizeof(T); ++i) {
                 buf.push_back(p[i]);
             }
         }
 
-        template <typename T> static T read_val(const uint8_t *&ptr) {
+        template <typename T> static T read_val(const dp::u8 *&ptr) {
             T val;
             std::memcpy(&val, ptr, sizeof(T));
             ptr += sizeof(T);
@@ -163,15 +162,22 @@ namespace agent47 {
         // ---------------------------------------------------------------------------
         // Command serialisation (agent47 -> backend)
         //
-        // Wire: [stamp_s:8][linear_mps:8][angular_rps:8][valid:1]
+        // Wire: [timestamp_ns:8]
+        //       [twist.linear  vx/vy/vz:24]
+        //       [twist.angular vx/vy/vz:24]
+        //       [valid:1]
         // ---------------------------------------------------------------------------
 
-        static netpipe::Message serialize_command(const types::Command &cmd) {
+        static netpipe::Message serialize_command(const dp::Stamp<types::Command> &cmd) {
             netpipe::Message msg;
-            write_val(msg, cmd.stamp_s);
-            write_val(msg, cmd.linear_mps);
-            write_val(msg, cmd.angular_rps);
-            write_val(msg, static_cast<uint8_t>(cmd.valid ? 1 : 0));
+            write_val(msg, static_cast<dp::i64>(cmd.timestamp));
+            write_val(msg, cmd.value.twist.linear.vx);
+            write_val(msg, cmd.value.twist.linear.vy);
+            write_val(msg, cmd.value.twist.linear.vz);
+            write_val(msg, cmd.value.twist.angular.vx);
+            write_val(msg, cmd.value.twist.angular.vy);
+            write_val(msg, cmd.value.twist.angular.vz);
+            write_val(msg, static_cast<dp::u8>(cmd.value.valid ? 1 : 0));
             return msg;
         }
 
@@ -179,91 +185,55 @@ namespace agent47 {
         // Feedback deserialisation (backend -> agent47)
         //
         // Wire layout:
-        //   [tick_seq:8][stamp_s:8]
+        //   [timestamp_ns:8]
+        //   [tick_seq:8]
         //   [pose.point x/y/z:24][pose.rotation w/x/y/z:32]
-        //   [linear_mps:8][angular_rps:8]
+        //   [twist.linear vx/vy/vz:24][twist.angular vx/vy/vz:24]
         //   [num_wheels:4] { [angle_rad:8][speed_rps:8] } * N
-        //   [flags:1]  (bit0=lidar, bit1=gps, bit2=imu)
+        //   [flags:1]  (bit0=lidar, bit1=gnss, bit2=imu)
         //   if lidar:
         //     [n_ranges:4][ranges_m: n*4][n_angles:4][angles_rad: n*4]
         //     [n_valid:4][valid: n*1][min_range:4][max_range:4]
-        //   if gps:
+        //   if gnss:
         //     [lat:8][lon:8][alt:8][heading:4][speed:4]
         //   if imu:
         //     [ax:4][ay:4][az:4][gz:4][yaw:4]
         // ---------------------------------------------------------------------------
 
-        static constexpr size_t FEEDBACK_FIXED_SIZE = 8 + 8 + 24 + 32 + 8 + 8 + 4 + 1; // 93
+        static constexpr dp::usize FEEDBACK_FIXED_SIZE = 8 + 8 + 24 + 32 + 24 + 24 + 4 + 1; // 125
 
-        static bool deserialize_feedback(const netpipe::Message &msg, types::Feedback &fb) {
+        static bool deserialize_feedback(const netpipe::Message &msg, dp::Stamp<types::Feedback> &fb) {
             if (msg.size() < FEEDBACK_FIXED_SIZE) {
                 return false;
             }
 
-            const uint8_t *ptr = msg.data();
+            const dp::u8 *ptr = msg.data();
 
-            fb.tick_seq = read_val<uint64_t>(ptr);
-            fb.stamp_s = read_val<double>(ptr);
+            fb.timestamp = read_val<dp::i64>(ptr);
+            fb.value.tick_seq = read_val<dp::u64>(ptr);
 
-            fb.pose.point.x = read_val<double>(ptr);
-            fb.pose.point.y = read_val<double>(ptr);
-            fb.pose.point.z = read_val<double>(ptr);
-            fb.pose.rotation.w = read_val<double>(ptr);
-            fb.pose.rotation.x = read_val<double>(ptr);
-            fb.pose.rotation.y = read_val<double>(ptr);
-            fb.pose.rotation.z = read_val<double>(ptr);
+            fb.value.pose.point.x = read_val<dp::f64>(ptr);
+            fb.value.pose.point.y = read_val<dp::f64>(ptr);
+            fb.value.pose.point.z = read_val<dp::f64>(ptr);
+            fb.value.pose.rotation.w = read_val<dp::f64>(ptr);
+            fb.value.pose.rotation.x = read_val<dp::f64>(ptr);
+            fb.value.pose.rotation.y = read_val<dp::f64>(ptr);
+            fb.value.pose.rotation.z = read_val<dp::f64>(ptr);
 
-            fb.linear_mps = read_val<double>(ptr);
-            fb.angular_rps = read_val<double>(ptr);
+            fb.value.twist.linear.vx = read_val<dp::f64>(ptr);
+            fb.value.twist.linear.vy = read_val<dp::f64>(ptr);
+            fb.value.twist.linear.vz = read_val<dp::f64>(ptr);
+            fb.value.twist.angular.vx = read_val<dp::f64>(ptr);
+            fb.value.twist.angular.vy = read_val<dp::f64>(ptr);
+            fb.value.twist.angular.vz = read_val<dp::f64>(ptr);
 
-            uint32_t num_wheels = read_val<uint32_t>(ptr);
-            fb.wheels.resize(num_wheels);
-            for (uint32_t i = 0; i < num_wheels; ++i) {
-                fb.wheels[i].angle_rad = read_val<double>(ptr);
-                fb.wheels[i].speed_rps = read_val<double>(ptr);
+            dp::u32 num_wheels = read_val<dp::u32>(ptr);
+            fb.value.wheels.resize(num_wheels);
+            for (dp::u32 i = 0; i < num_wheels; ++i) {
+                fb.value.wheels[i].angle_rad = read_val<dp::f64>(ptr);
+                fb.value.wheels[i].speed_rps = read_val<dp::f64>(ptr);
             }
-
-            uint8_t flags = read_val<uint8_t>(ptr);
-            fb.has_lidar = (flags & 0x01) != 0;
-            fb.has_gps = (flags & 0x02) != 0;
-            fb.has_imu = (flags & 0x04) != 0;
-
-            if (fb.has_lidar) {
-                uint32_t n_ranges = read_val<uint32_t>(ptr);
-                fb.lidar.ranges_m.resize(n_ranges);
-                for (uint32_t i = 0; i < n_ranges; ++i) {
-                    fb.lidar.ranges_m[i] = read_val<float>(ptr);
-                }
-                uint32_t n_angles = read_val<uint32_t>(ptr);
-                fb.lidar.angles_rad.resize(n_angles);
-                for (uint32_t i = 0; i < n_angles; ++i) {
-                    fb.lidar.angles_rad[i] = read_val<float>(ptr);
-                }
-                uint32_t n_valid = read_val<uint32_t>(ptr);
-                fb.lidar.valid.resize(n_valid);
-                for (uint32_t i = 0; i < n_valid; ++i) {
-                    fb.lidar.valid[i] = read_val<uint8_t>(ptr);
-                }
-                fb.lidar.min_range_m = read_val<float>(ptr);
-                fb.lidar.max_range_m = read_val<float>(ptr);
-            }
-
-            if (fb.has_gps) {
-                fb.gps.latitude = read_val<double>(ptr);
-                fb.gps.longitude = read_val<double>(ptr);
-                fb.gps.altitude = read_val<double>(ptr);
-                fb.gps.heading_rad = read_val<float>(ptr);
-                fb.gps.speed_mps = read_val<float>(ptr);
-            }
-
-            if (fb.has_imu) {
-                fb.imu.accel_x = read_val<float>(ptr);
-                fb.imu.accel_y = read_val<float>(ptr);
-                fb.imu.accel_z = read_val<float>(ptr);
-                fb.imu.gyro_z = read_val<float>(ptr);
-                fb.imu.yaw_rad = read_val<float>(ptr);
-            }
-
+            dp::u8 flags = read_val<dp::u8>(ptr);
             return true;
         }
     };

@@ -1,4 +1,5 @@
 #include <agent47.hpp>
+#include <argu/argu.hpp>
 #include <echo/echo.hpp>
 
 #include <termios.h>
@@ -45,12 +46,30 @@ namespace {
     }
 } // namespace
 
-int main() {
-#ifdef AGENT47_HAS_ROS2
+int main(int argc, char *argv[]) {
+
+    std::string name;
+    auto cmd = argu::Command("key_op")
+                   .version("1.0.0")
+                   .about("WASD teleop: w/s linear, a/d angular, space stop, q quit")
+                   .auto_exit()
+                   .arg(argu::Arg("name")
+                            .positional()
+                            .help("Robot name")
+                            .value_of(name)
+                            .value_name("NAME")
+                            .default_value("carter_1"));
+
+    auto result = cmd.parse(argc, argv);
+    if (!result) {
+        return result.exit();
+    }
+
+    echo("Name: ", name);
 
     agent47::model::Robot model;
-    model.identity.uuid = "robot_0";
-    model.identity.name = "turtle1";
+    model.identity.uuid = name;
+    model.identity.name = name;
     model.identity.type = "diff_drive";
 
     model.body.steering_type = agent47::model::SteeringType::ACKERMANN;
@@ -143,9 +162,5 @@ int main() {
 
         std::this_thread::sleep_for(std::chrono::duration<double>(PUBLISH_DT_S));
     }
-
-#else
-    echo("AGENT47_HAS_ROS2 is not enabled");
-#endif
     return 0;
 }

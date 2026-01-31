@@ -38,6 +38,19 @@ ifdef BIG_TRANSFER
 endif
 
 # ==================================================================================================
+# ROS2 enable (raw)
+#
+# Auto-enable when a ROS2 environment is sourced (direnv/.envrc usually sets AMENT_PREFIX_PATH).
+# Force-disable with: make <target> ROS2=0
+# ==================================================================================================
+ROS2 ?=
+ifeq ($(ROS2),0)
+    # explicitly disabled
+else ifneq ($(strip $(AMENT_PREFIX_PATH)),)
+    CMAKE_ROS_FLAG := -D$(PROJECT_CAP)_HAS_ROS2=ON
+endif
+
+# ==================================================================================================
 # Build system detection: BUILD_SYSTEM env > cmake > zig > xmake
 # ==================================================================================================
 ifndef BUILD_SYSTEM
@@ -84,9 +97,9 @@ else ifeq ($(BUILD_SYSTEM),xmake)
 
 else
     # CMake build system (default)
-    CMD_BUILD       := cd $(BUILD_DIR) && make -j$(shell nproc) 2>&1 | tee "$(TOP_DIR)/.complog"
-    CMD_CONFIG      := mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && if [ -f Makefile ]; then make clean; fi && cmake -Wno-dev $(CMAKE_COMPILER_FLAG) $(CMAKE_BIG_TRANSFER_FLAG) -D$(PROJECT_CAP)_BUILD_EXAMPLES=ON -D$(PROJECT_CAP)_ENABLE_TESTS=ON .. 2>&1 | tee "$(TOP_DIR)/.complog"
-    CMD_RECONFIG    := rm -rf $(BUILD_DIR) && mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && cmake -Wno-dev $(CMAKE_COMPILER_FLAG) $(CMAKE_BIG_TRANSFER_FLAG) -D$(PROJECT_CAP)_BUILD_EXAMPLES=ON -D$(PROJECT_CAP)_ENABLE_TESTS=ON .. 2>&1 | tee "$(TOP_DIR)/.complog"
+    CMD_BUILD       := cd $(BUILD_DIR) && make --no-print-directory -j$(shell nproc) 2>&1 | tee "$(TOP_DIR)/.complog"
+    CMD_CONFIG      := mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && if [ -f Makefile ]; then make clean; fi && cmake -Wno-dev $(CMAKE_COMPILER_FLAG) $(CMAKE_BIG_TRANSFER_FLAG) $(CMAKE_ROS_FLAG) -D$(PROJECT_CAP)_BUILD_EXAMPLES=ON -D$(PROJECT_CAP)_ENABLE_TESTS=ON .. 2>&1 | tee "$(TOP_DIR)/.complog"
+    CMD_RECONFIG    := rm -rf $(BUILD_DIR) && mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && cmake -Wno-dev $(CMAKE_COMPILER_FLAG) $(CMAKE_BIG_TRANSFER_FLAG) $(CMAKE_ROS_FLAG) -D$(PROJECT_CAP)_BUILD_EXAMPLES=ON -D$(PROJECT_CAP)_ENABLE_TESTS=ON .. 2>&1 | tee "$(TOP_DIR)/.complog"
     CMD_CLEAN       := rm -rf $(BUILD_DIR)
     CMD_TEST        := cd $(BUILD_DIR) && ctest --verbose --output-on-failure
     CMD_TEST_SINGLE  = $(BUILD_DIR)/$(TEST)
