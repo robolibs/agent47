@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.0.3] - 2026-01-31
+
+### <!-- 0 -->⛰️  Features
+
+- Add URDF parsing and representation
+- Add WASD teleop to simple example
+- Implement timestamped feedback data and commands
+- Enable direct ROS2 connection for agent
+- Add raw ROS2 bridging support
+- Revamp agent47 sensor and bridge interfaces
+
 ## [0.0.2] - 2026-01-28
 
 ### <!-- 0 -->⛰️  Features
