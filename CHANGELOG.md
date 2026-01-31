@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.6] - 2026-01-31
+
+### <!-- 0 -->⛰️  Features
+
+- Migrate URDF parsing to tinyxml2
+
 ## [0.0.5] - 2026-01-31
 
 ### <!-- 0 -->⛰️  Features

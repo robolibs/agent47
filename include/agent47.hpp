@@ -16,6 +16,8 @@
 #include "agent47/sensors/lidar.hpp"
 #include "agent47/types.hpp"
 
+#include "agent47/model/urdf.hpp"
+
 #ifdef AGENT47_HAS_ROS2
     #include "agent47/bridge/ros2_bridge.hpp"
 #endif
