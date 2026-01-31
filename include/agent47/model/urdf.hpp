@@ -32,16 +32,8 @@
 
 namespace robomod {
 
-    struct UrdfExtensions {
-        dp::Vector<dp::String> robot;
-        std::unordered_map<dp::String, dp::Vector<dp::String>> links;
-        std::unordered_map<dp::String, dp::Vector<dp::String>> joints;
-    };
-
-    struct Urdf {
-        datapod::robot::Model model;
-        UrdfExtensions ext;
-    };
+    // Props-based parsing: non-core elements are flattened into props maps
+    // on datapod::robot::{Model,Link,Joint}.
 
     // ---------------------------------------------------------------------------------------------
     // Small helpers
@@ -198,7 +190,7 @@ namespace robomod {
         dp::Optional<JointDynamics> dynamics;
     };
 
-    static dp::Result<Urdf> from_urdf_string(const dp::String &xml);
+    static dp::Result<datapod::robot::Model> from_urdf_string(const dp::String &xml);
 
     // ---------------------------------------------------------------------------------------------
     // Parsing
@@ -782,40 +774,66 @@ namespace robomod {
         return dp::Result<datapod::robot::Model>::ok(out);
     }
 
-    static inline dp::String element_to_xml(tinyxml2::XMLElement *el) {
-        if (!el) {
-            return dp::String("");
+    static inline void flatten_attrs_into_props(datapod::Map<datapod::String, datapod::String> &props,
+                                                const dp::String &prefix, const tinyxml2::XMLElement *el) {
+        for (const tinyxml2::XMLAttribute *a = el ? el->FirstAttribute() : nullptr; a; a = a->Next()) {
+            dp::String key = prefix;
+            key += ".";
+            key += dp_string(a->Name());
+            props[datapod::String(key.c_str())] = datapod::String(dp_string(a->Value()).c_str());
         }
-        tinyxml2::XMLPrinter printer;
-        el->Accept(&printer);
-        return dp_string(printer.CStr());
     }
 
-    static inline void collect_robot_extensions(UrdfExtensions &ext, tinyxml2::XMLElement *robot_xml) {
+    static inline void flatten_children_into_props(datapod::Map<datapod::String, datapod::String> &props,
+                                                   const dp::String &prefix, const tinyxml2::XMLElement *el) {
+        for (const tinyxml2::XMLElement *child = el ? el->FirstChildElement() : nullptr; child;
+             child = child->NextSiblingElement()) {
+            const dp::String tag = dp_string(child->Name());
+            dp::String next = prefix;
+            next += ".";
+            next += tag;
+
+            flatten_attrs_into_props(props, next, child);
+            // recurse
+            flatten_children_into_props(props, next, child);
+
+            // If the element has text and no nested elements, store it.
+            if (child->FirstChildElement() == nullptr) {
+                if (const char *text = child->GetText()) {
+                    dp::String text_s = dp_string(text);
+                    if (!text_s.empty()) {
+                        props[datapod::String(next.c_str())] = datapod::String(text_s.c_str());
+                    }
+                }
+            }
+        }
+    }
+
+    static inline void parse_robot_props(datapod::robot::Model &model, tinyxml2::XMLElement *robot_xml) {
         for (tinyxml2::XMLElement *child = robot_xml ? robot_xml->FirstChildElement() : nullptr; child;
              child = child->NextSiblingElement()) {
             const dp::String tag = dp_string(child->Name());
             if (tag == "link" || tag == "joint" || tag == "material") {
                 continue;
             }
-            ext.robot.push_back(element_to_xml(child));
+            flatten_attrs_into_props(model.props, tag, child);
+            flatten_children_into_props(model.props, tag, child);
         }
     }
 
-    static inline void collect_link_extensions(UrdfExtensions &ext, const dp::String &link_name,
-                                               tinyxml2::XMLElement *link_xml) {
+    static inline void parse_link_props(datapod::robot::Link &link, tinyxml2::XMLElement *link_xml) {
         for (tinyxml2::XMLElement *child = link_xml ? link_xml->FirstChildElement() : nullptr; child;
              child = child->NextSiblingElement()) {
             const dp::String tag = dp_string(child->Name());
             if (tag == "inertial" || tag == "visual" || tag == "collision") {
                 continue;
             }
-            ext.links[link_name].push_back(element_to_xml(child));
+            flatten_attrs_into_props(link.props, tag, child);
+            flatten_children_into_props(link.props, tag, child);
         }
     }
 
-    static inline void collect_joint_extensions(UrdfExtensions &ext, const dp::String &joint_name,
-                                                tinyxml2::XMLElement *joint_xml) {
+    static inline void parse_joint_props(datapod::robot::Joint &joint, tinyxml2::XMLElement *joint_xml) {
         for (tinyxml2::XMLElement *child = joint_xml ? joint_xml->FirstChildElement() : nullptr; child;
              child = child->NextSiblingElement()) {
             const dp::String tag = dp_string(child->Name());
@@ -823,29 +841,30 @@ namespace robomod {
                 tag == "dynamics" || tag == "mimic" || tag == "safety_controller" || tag == "calibration") {
                 continue;
             }
-            ext.joints[joint_name].push_back(element_to_xml(child));
+            flatten_attrs_into_props(joint.props, tag, child);
+            flatten_children_into_props(joint.props, tag, child);
         }
     }
 
-    inline dp::Result<Urdf> from_urdf_string(const dp::String &xml) {
+    inline dp::Result<datapod::robot::Model> from_urdf_string(const dp::String &xml) {
         tinyxml2::XMLDocument doc;
         doc.Parse(xml.c_str());
         if (doc.Error()) {
-            return dp::Result<Urdf>::err(dp::Error::invalid_argument("invalid xml"));
+            return dp::Result<datapod::robot::Model>::err(dp::Error::invalid_argument("invalid xml"));
         }
 
         tinyxml2::XMLElement *robot = doc.FirstChildElement("robot");
         if (!robot) {
-            return dp::Result<Urdf>::err(dp::Error::invalid_argument("missing <robot>"));
+            return dp::Result<datapod::robot::Model>::err(dp::Error::invalid_argument("missing <robot>"));
         }
 
         dp::String robot_name = dp_string(robot->Attribute("name"));
         if (robot_name.empty()) {
-            return dp::Result<Urdf>::err(dp::Error::invalid_argument("robot missing name"));
+            return dp::Result<datapod::robot::Model>::err(dp::Error::invalid_argument("robot missing name"));
         }
 
-        Urdf out;
-        collect_robot_extensions(out.ext, robot);
+        datapod::robot::Model out;
+        parse_robot_props(out, robot);
 
         dp::Vector<Link> links;
         dp::Vector<Joint> joints;
@@ -854,38 +873,68 @@ namespace robomod {
              link = link->NextSiblingElement("link")) {
             auto parsed = parse_link(link);
             if (parsed.is_err()) {
-                return dp::Result<Urdf>::err(parsed.error());
+                return dp::Result<datapod::robot::Model>::err(parsed.error());
             }
-            collect_link_extensions(out.ext, parsed.value().name, link);
             links.push_back(parsed.value());
         }
         if (links.empty()) {
-            return dp::Result<Urdf>::err(dp::Error::invalid_argument("no links"));
+            return dp::Result<datapod::robot::Model>::err(dp::Error::invalid_argument("no links"));
         }
 
         for (tinyxml2::XMLElement *joint = robot->FirstChildElement("joint"); joint;
              joint = joint->NextSiblingElement("joint")) {
             auto parsed = parse_joint(joint);
             if (parsed.is_err()) {
-                return dp::Result<Urdf>::err(parsed.error());
+                return dp::Result<datapod::robot::Model>::err(parsed.error());
             }
-            collect_joint_extensions(out.ext, parsed.value().name, joint);
             joints.push_back(parsed.value());
         }
 
         auto root = find_root_link(links, joints);
         if (root.is_err()) {
-            return dp::Result<Urdf>::err(root.error());
+            return dp::Result<datapod::robot::Model>::err(root.error());
         }
 
+        // Build dp model
         auto dp_model = build_dp_model(root.value(), links, joints);
         if (dp_model.is_err()) {
-            return dp::Result<Urdf>::err(dp_model.error());
+            return dp::Result<datapod::robot::Model>::err(dp_model.error());
         }
 
-        out.model = dp_model.value();
+        // Copy model-level props collected above
+        dp_model.value().props = out.props;
 
-        return dp::Result<Urdf>::ok(out);
+        // Populate link/joint props by re-walking xml and matching by name
+        for (tinyxml2::XMLElement *link_el = robot->FirstChildElement("link"); link_el;
+             link_el = link_el->NextSiblingElement("link")) {
+            const dp::String name = dp_string(link_el->Attribute("name"));
+            if (name.empty()) {
+                continue;
+            }
+            // Find link id by name
+            for (dp::u32 i = 0; i < dp_model.value().links.size(); ++i) {
+                if (dp_model.value().links[i].name == datapod::String(name.c_str())) {
+                    parse_link_props(dp_model.value().links[i], link_el);
+                    break;
+                }
+            }
+        }
+
+        for (tinyxml2::XMLElement *joint_el = robot->FirstChildElement("joint"); joint_el;
+             joint_el = joint_el->NextSiblingElement("joint")) {
+            const dp::String name = dp_string(joint_el->Attribute("name"));
+            if (name.empty()) {
+                continue;
+            }
+            for (dp::u32 i = 0; i < dp_model.value().joints.size(); ++i) {
+                if (dp_model.value().joints[i].name == datapod::String(name.c_str())) {
+                    parse_joint_props(dp_model.value().joints[i], joint_el);
+                    break;
+                }
+            }
+        }
+
+        return dp::Result<datapod::robot::Model>::ok(dp_model.value());
     }
 
 } // namespace robomod
