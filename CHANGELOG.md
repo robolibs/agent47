@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.5] - 2026-01-31
+
+### <!-- 0 -->⛰️  Features
+
+- Refactor URDF parsing dependencies
+
 ## [0.0.4] - 2026-01-31
 
 ### <!-- 0 -->⛰️  Features
