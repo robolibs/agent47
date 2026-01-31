@@ -97,7 +97,7 @@ else ifeq ($(BUILD_SYSTEM),xmake)
 
 else
     # CMake build system (default)
-    CMD_BUILD       := cd $(BUILD_DIR) && make -j$(shell nproc) 2>&1 | tee "$(TOP_DIR)/.complog"
+    CMD_BUILD       := cd $(BUILD_DIR) && make --no-print-directory -j$(shell nproc) 2>&1 | tee "$(TOP_DIR)/.complog"
     CMD_CONFIG      := mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && if [ -f Makefile ]; then make clean; fi && cmake -Wno-dev $(CMAKE_COMPILER_FLAG) $(CMAKE_BIG_TRANSFER_FLAG) $(CMAKE_ROS_FLAG) -D$(PROJECT_CAP)_BUILD_EXAMPLES=ON -D$(PROJECT_CAP)_ENABLE_TESTS=ON .. 2>&1 | tee "$(TOP_DIR)/.complog"
     CMD_RECONFIG    := rm -rf $(BUILD_DIR) && mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && cmake -Wno-dev $(CMAKE_COMPILER_FLAG) $(CMAKE_BIG_TRANSFER_FLAG) $(CMAKE_ROS_FLAG) -D$(PROJECT_CAP)_BUILD_EXAMPLES=ON -D$(PROJECT_CAP)_ENABLE_TESTS=ON .. 2>&1 | tee "$(TOP_DIR)/.complog"
     CMD_CLEAN       := rm -rf $(BUILD_DIR)

@@ -58,9 +58,9 @@ namespace agent47 {
         };
 
         struct Constraints {
-            double wheelbase = 1.0;    // Distance between axles (m)
-            double track_width = 0.5;  // Distance between wheels (m)
-            double wheel_radius = 0.1; // Wheel radius (m)
+            double axis_distance = 1.0; // Distance between axles (m)
+            double track_width = 0.5;   // Distance between wheels (m)
+            double wheel_radius = 0.1;  // Wheel radius (m)
 
             // Dynamic limits
             double max_linear_velocity = 1.0;      // m/s
@@ -73,10 +73,6 @@ namespace agent47 {
             double max_steering_angle = 0.5; // radians
             double max_steering_rate = 1.0;  // rad/s
             double min_turning_radius = 1.0; // meters
-
-            // Multi-axle specific
-            double rear_wheelbase = 0.0;          // Distance to rear axle
-            double max_rear_steering_angle = 0.0; // radians
 
             double robot_width = 0.0;  // Robot width
             double robot_length = 0.0; // Robot length

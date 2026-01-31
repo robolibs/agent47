@@ -23,11 +23,11 @@ agent47
 
 [lib]
 echo|https://github.com/bresilla/echo.git|0.0.25
-scan|https://github.com/bresilla/scan.git|0.0.10
+scan|https://github.com/bresilla/scan.git|0.0.11
+datapod|https://github.com/robolibs/datapod.git|0.0.46
+optinum|https://github.com/robolibs/optinum.git|0.0.18
 wirebit|https://github.com/robolibs/wirebit.git|0.0.11
 netpipe|https://github.com/robolibs/netpipe.git|0.0.16
-datapod|https://github.com/robolibs/datapod.git|0.0.42
-optinum|https://github.com/robolibs/optinum.git|0.0.18
 botlink|https://github.com/robolibs/botlink.git|0.0.7
 drivekit|https://github.com/robolibs/drivekit.git|0.0.6
 farmtrax|https://github.com/robolibs/farmtrax.git|0.0.10
