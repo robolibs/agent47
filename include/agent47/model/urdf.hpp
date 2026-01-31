@@ -28,9 +28,7 @@
 #include <datapod/pods/adapters/result.hpp>
 #include <datapod/spatial.hpp>
 
-#include <datapod/pods/spatial/robot/model.hpp>
-
-#include "txml.hpp"
+#include <txml.hpp>
 
 namespace robomod {
 
@@ -138,7 +136,9 @@ namespace robomod {
         Type type = Type::Unknown;
         dp::Vector<dp::f64> params; // Box: [x y z], Cylinder: [radius length], Sphere: [radius]
         dp::String mesh_filename;
-        dp::mat::Vector<dp::f64, 3> mesh_scale{1.0, 1.0, 1.0};
+        dp::f64 mesh_scale_x = 1.0;
+        dp::f64 mesh_scale_y = 1.0;
+        dp::f64 mesh_scale_z = 1.0;
     };
 
     struct Visual {
@@ -191,7 +191,9 @@ namespace robomod {
         dp::String parent_link;
         dp::String child_link;
         dp::Pose parent_to_joint;
-        dp::mat::Vector<dp::f64, 3> axis{1.0, 0.0, 0.0};
+        dp::f64 axis_x = 1.0;
+        dp::f64 axis_y = 0.0;
+        dp::f64 axis_z = 0.0;
         dp::Optional<JointLimits> limits;
         dp::Optional<JointDynamics> dynamics;
     };
@@ -202,7 +204,7 @@ namespace robomod {
     // Parsing
     // ---------------------------------------------------------------------------------------------
 
-    static inline dp::Result<dp::Pose> parse_origin(TiXmlElement *origin_xml) {
+    static inline dp::Result<dp::Pose> parse_origin(tinyxml2::XMLElement *origin_xml) {
         dp::Pose out;
         out.point = dp::Point{0.0, 0.0, 0.0};
         out.rotation = dp::Quaternion{1.0, 0.0, 0.0, 0.0};
@@ -232,18 +234,18 @@ namespace robomod {
         return dp::Result<dp::Pose>::ok(out);
     }
 
-    static inline dp::Result<Geometry> parse_geometry(TiXmlElement *geom_xml) {
+    static inline dp::Result<Geometry> parse_geometry(tinyxml2::XMLElement *geom_xml) {
         if (!geom_xml) {
             return dp::Result<Geometry>::err(dp::Error::invalid_argument("missing geometry"));
         }
 
-        TiXmlElement *shape = geom_xml->FirstChildElement();
+        tinyxml2::XMLElement *shape = geom_xml->FirstChildElement();
         if (!shape) {
             return dp::Result<Geometry>::err(dp::Error::invalid_argument("geometry has no shape"));
         }
 
         Geometry g;
-        const dp::String tag = dp_string(shape->Value());
+        const dp::String tag = dp_string(shape->Name());
 
         if (tag == "box") {
             g.type = Geometry::Type::Box;
@@ -284,9 +286,9 @@ namespace robomod {
                 if (vals.is_err()) {
                     return dp::Result<Geometry>::err(vals.error());
                 }
-                g.mesh_scale[0] = vals.value()[0];
-                g.mesh_scale[1] = vals.value()[1];
-                g.mesh_scale[2] = vals.value()[2];
+                g.mesh_scale_x = vals.value()[0];
+                g.mesh_scale_y = vals.value()[1];
+                g.mesh_scale_z = vals.value()[2];
             }
             return dp::Result<Geometry>::ok(g);
         }
@@ -294,7 +296,7 @@ namespace robomod {
         return dp::Result<Geometry>::err(dp::Error::invalid_argument("unknown geometry type"));
     }
 
-    static inline dp::Result<Material> parse_material(TiXmlElement *mat_xml, bool only_name_ok) {
+    static inline dp::Result<Material> parse_material(tinyxml2::XMLElement *mat_xml, bool only_name_ok) {
         if (!mat_xml) {
             return dp::Result<Material>::err(dp::Error::invalid_argument("missing material"));
         }
@@ -307,12 +309,12 @@ namespace robomod {
         bool has_color = false;
         bool has_texture = false;
 
-        if (TiXmlElement *t = mat_xml->FirstChildElement("texture")) {
+        if (tinyxml2::XMLElement *t = mat_xml->FirstChildElement("texture")) {
             m.texture_filename = dp_string(t->Attribute("filename"));
             has_texture = !m.texture_filename.empty();
         }
 
-        if (TiXmlElement *c = mat_xml->FirstChildElement("color")) {
+        if (tinyxml2::XMLElement *c = mat_xml->FirstChildElement("color")) {
             if (const char *rgba = c->Attribute("rgba")) {
                 auto vals = parse_f64_list(rgba, 4);
                 if (vals.is_ok()) {
@@ -331,7 +333,7 @@ namespace robomod {
         return dp::Result<Material>::ok(m);
     }
 
-    static inline dp::Result<Visual> parse_visual(TiXmlElement *vis_xml) {
+    static inline dp::Result<Visual> parse_visual(tinyxml2::XMLElement *vis_xml) {
         Visual v;
         if (!vis_xml) {
             return dp::Result<Visual>::err(dp::Error::invalid_argument("missing visual"));
@@ -350,7 +352,7 @@ namespace robomod {
         }
         v.geometry = geom.value();
 
-        if (TiXmlElement *mat = vis_xml->FirstChildElement("material")) {
+        if (tinyxml2::XMLElement *mat = vis_xml->FirstChildElement("material")) {
             v.material_name = dp_string(mat->Attribute("name"));
             auto parsed = parse_material(mat, /*only_name_ok=*/true);
             if (parsed.is_ok()) {
@@ -360,7 +362,7 @@ namespace robomod {
         return dp::Result<Visual>::ok(v);
     }
 
-    static inline dp::Result<Collision> parse_collision(TiXmlElement *col_xml) {
+    static inline dp::Result<Collision> parse_collision(tinyxml2::XMLElement *col_xml) {
         Collision c;
         if (!col_xml) {
             return dp::Result<Collision>::err(dp::Error::invalid_argument("missing collision"));
@@ -382,7 +384,7 @@ namespace robomod {
         return dp::Result<Collision>::ok(c);
     }
 
-    static inline dp::Result<Inertial> parse_inertial(TiXmlElement *inertial_xml) {
+    static inline dp::Result<Inertial> parse_inertial(tinyxml2::XMLElement *inertial_xml) {
         if (!inertial_xml) {
             return dp::Result<Inertial>::err(dp::Error::invalid_argument("missing inertial"));
         }
@@ -393,7 +395,7 @@ namespace robomod {
         }
         i.origin = origin.value();
 
-        TiXmlElement *mass_xml = inertial_xml->FirstChildElement("mass");
+        tinyxml2::XMLElement *mass_xml = inertial_xml->FirstChildElement("mass");
         if (!mass_xml) {
             return dp::Result<Inertial>::err(dp::Error::invalid_argument("inertial missing mass"));
         }
@@ -403,7 +405,7 @@ namespace robomod {
         }
         i.mass = mass.value();
 
-        TiXmlElement *inertia_xml = inertial_xml->FirstChildElement("inertia");
+        tinyxml2::XMLElement *inertia_xml = inertial_xml->FirstChildElement("inertia");
         if (!inertia_xml) {
             return dp::Result<Inertial>::err(dp::Error::invalid_argument("inertial missing inertia"));
         }
@@ -450,7 +452,7 @@ namespace robomod {
         return JointType::Unknown;
     }
 
-    static inline dp::Result<Joint> parse_joint(TiXmlElement *joint_xml) {
+    static inline dp::Result<Joint> parse_joint(tinyxml2::XMLElement *joint_xml) {
         if (!joint_xml) {
             return dp::Result<Joint>::err(dp::Error::invalid_argument("missing joint"));
         }
@@ -462,10 +464,10 @@ namespace robomod {
         }
         j.type = joint_type_from_string(dp_string(joint_xml->Attribute("type")));
 
-        if (TiXmlElement *parent = joint_xml->FirstChildElement("parent")) {
+        if (tinyxml2::XMLElement *parent = joint_xml->FirstChildElement("parent")) {
             j.parent_link = dp_string(parent->Attribute("link"));
         }
-        if (TiXmlElement *child = joint_xml->FirstChildElement("child")) {
+        if (tinyxml2::XMLElement *child = joint_xml->FirstChildElement("child")) {
             j.child_link = dp_string(child->Attribute("link"));
         }
         if (j.parent_link.empty() || j.child_link.empty()) {
@@ -478,18 +480,18 @@ namespace robomod {
         }
         j.parent_to_joint = origin.value();
 
-        if (TiXmlElement *axis = joint_xml->FirstChildElement("axis")) {
+        if (tinyxml2::XMLElement *axis = joint_xml->FirstChildElement("axis")) {
             if (const char *xyz = axis->Attribute("xyz")) {
                 auto vals = parse_f64_list(xyz, 3);
                 if (vals.is_ok()) {
-                    j.axis[0] = vals.value()[0];
-                    j.axis[1] = vals.value()[1];
-                    j.axis[2] = vals.value()[2];
+                    j.axis_x = vals.value()[0];
+                    j.axis_y = vals.value()[1];
+                    j.axis_z = vals.value()[2];
                 }
             }
         }
 
-        if (TiXmlElement *limits = joint_xml->FirstChildElement("limit")) {
+        if (tinyxml2::XMLElement *limits = joint_xml->FirstChildElement("limit")) {
             JointLimits l;
             if (const char *lower = limits->Attribute("lower")) {
                 auto v = parse_f64(lower);
@@ -518,7 +520,7 @@ namespace robomod {
             j.limits = l;
         }
 
-        if (TiXmlElement *dyn = joint_xml->FirstChildElement("dynamics")) {
+        if (tinyxml2::XMLElement *dyn = joint_xml->FirstChildElement("dynamics")) {
             JointDynamics d;
             if (const char *damping = dyn->Attribute("damping")) {
                 auto v = parse_f64(damping);
@@ -538,7 +540,7 @@ namespace robomod {
         return dp::Result<Joint>::ok(j);
     }
 
-    static inline dp::Result<Link> parse_link(TiXmlElement *link_xml) {
+    static inline dp::Result<Link> parse_link(tinyxml2::XMLElement *link_xml) {
         if (!link_xml) {
             return dp::Result<Link>::err(dp::Error::invalid_argument("missing link"));
         }
@@ -549,7 +551,7 @@ namespace robomod {
             return dp::Result<Link>::err(dp::Error::invalid_argument("link missing name"));
         }
 
-        if (TiXmlElement *inertial = link_xml->FirstChildElement("inertial")) {
+        if (tinyxml2::XMLElement *inertial = link_xml->FirstChildElement("inertial")) {
             auto parsed = parse_inertial(inertial);
             if (parsed.is_err()) {
                 return dp::Result<Link>::err(parsed.error());
@@ -557,7 +559,8 @@ namespace robomod {
             l.inertial = parsed.value();
         }
 
-        for (TiXmlElement *vis = link_xml->FirstChildElement("visual"); vis; vis = vis->NextSiblingElement("visual")) {
+        for (tinyxml2::XMLElement *vis = link_xml->FirstChildElement("visual"); vis;
+             vis = vis->NextSiblingElement("visual")) {
             auto parsed = parse_visual(vis);
             if (parsed.is_err()) {
                 return dp::Result<Link>::err(parsed.error());
@@ -565,7 +568,7 @@ namespace robomod {
             l.visuals.push_back(parsed.value());
         }
 
-        for (TiXmlElement *col = link_xml->FirstChildElement("collision"); col;
+        for (tinyxml2::XMLElement *col = link_xml->FirstChildElement("collision"); col;
              col = col->NextSiblingElement("collision")) {
             auto parsed = parse_collision(col);
             if (parsed.is_err()) {
@@ -673,7 +676,7 @@ namespace robomod {
             }
             return sphere(g->params[0]);
         case Geometry::Type::Mesh: {
-            datapod::Array<dp::f64, 3> scale{g->mesh_scale[0], g->mesh_scale[1], g->mesh_scale[2]};
+            datapod::Array<dp::f64, 3> scale{g->mesh_scale_x, g->mesh_scale_y, g->mesh_scale_z};
             return mesh(datapod::String(g->mesh_filename.c_str()), scale);
         }
         case Geometry::Type::Unknown:
@@ -768,7 +771,7 @@ namespace robomod {
             dj.name = datapod::String(j.name.c_str());
             dj.type = to_dp_joint_type(j.type);
             dj.origin = j.parent_to_joint;
-            dj.axis = datapod::Array<dp::f64, 3>{j.axis[0], j.axis[1], j.axis[2]};
+            dj.axis = datapod::Array<dp::f64, 3>{j.axis_x, j.axis_y, j.axis_z};
             dj.limits = to_dp_joint_limits(j.limits);
             dj.dynamics = to_dp_joint_dynamics(j.dynamics);
 
@@ -779,19 +782,19 @@ namespace robomod {
         return dp::Result<datapod::robot::Model>::ok(out);
     }
 
-    static inline dp::String element_to_xml(TiXmlElement *el) {
+    static inline dp::String element_to_xml(tinyxml2::XMLElement *el) {
         if (!el) {
             return dp::String("");
         }
-        TiXmlPrinter printer;
+        tinyxml2::XMLPrinter printer;
         el->Accept(&printer);
         return dp_string(printer.CStr());
     }
 
-    static inline void collect_robot_extensions(UrdfExtensions &ext, TiXmlElement *robot_xml) {
-        for (TiXmlElement *child = robot_xml ? robot_xml->FirstChildElement() : nullptr; child;
+    static inline void collect_robot_extensions(UrdfExtensions &ext, tinyxml2::XMLElement *robot_xml) {
+        for (tinyxml2::XMLElement *child = robot_xml ? robot_xml->FirstChildElement() : nullptr; child;
              child = child->NextSiblingElement()) {
-            const dp::String tag = dp_string(child->Value());
+            const dp::String tag = dp_string(child->Name());
             if (tag == "link" || tag == "joint" || tag == "material") {
                 continue;
             }
@@ -800,10 +803,10 @@ namespace robomod {
     }
 
     static inline void collect_link_extensions(UrdfExtensions &ext, const dp::String &link_name,
-                                               TiXmlElement *link_xml) {
-        for (TiXmlElement *child = link_xml ? link_xml->FirstChildElement() : nullptr; child;
+                                               tinyxml2::XMLElement *link_xml) {
+        for (tinyxml2::XMLElement *child = link_xml ? link_xml->FirstChildElement() : nullptr; child;
              child = child->NextSiblingElement()) {
-            const dp::String tag = dp_string(child->Value());
+            const dp::String tag = dp_string(child->Name());
             if (tag == "inertial" || tag == "visual" || tag == "collision") {
                 continue;
             }
@@ -812,10 +815,10 @@ namespace robomod {
     }
 
     static inline void collect_joint_extensions(UrdfExtensions &ext, const dp::String &joint_name,
-                                                TiXmlElement *joint_xml) {
-        for (TiXmlElement *child = joint_xml ? joint_xml->FirstChildElement() : nullptr; child;
+                                                tinyxml2::XMLElement *joint_xml) {
+        for (tinyxml2::XMLElement *child = joint_xml ? joint_xml->FirstChildElement() : nullptr; child;
              child = child->NextSiblingElement()) {
-            const dp::String tag = dp_string(child->Value());
+            const dp::String tag = dp_string(child->Name());
             if (tag == "origin" || tag == "parent" || tag == "child" || tag == "axis" || tag == "limit" ||
                 tag == "dynamics" || tag == "mimic" || tag == "safety_controller" || tag == "calibration") {
                 continue;
@@ -825,13 +828,13 @@ namespace robomod {
     }
 
     inline dp::Result<Urdf> from_urdf_string(const dp::String &xml) {
-        TiXmlDocument doc;
+        tinyxml2::XMLDocument doc;
         doc.Parse(xml.c_str());
         if (doc.Error()) {
             return dp::Result<Urdf>::err(dp::Error::invalid_argument("invalid xml"));
         }
 
-        TiXmlElement *robot = doc.FirstChildElement("robot");
+        tinyxml2::XMLElement *robot = doc.FirstChildElement("robot");
         if (!robot) {
             return dp::Result<Urdf>::err(dp::Error::invalid_argument("missing <robot>"));
         }
@@ -847,7 +850,8 @@ namespace robomod {
         dp::Vector<Link> links;
         dp::Vector<Joint> joints;
 
-        for (TiXmlElement *link = robot->FirstChildElement("link"); link; link = link->NextSiblingElement("link")) {
+        for (tinyxml2::XMLElement *link = robot->FirstChildElement("link"); link;
+             link = link->NextSiblingElement("link")) {
             auto parsed = parse_link(link);
             if (parsed.is_err()) {
                 return dp::Result<Urdf>::err(parsed.error());
@@ -859,7 +863,7 @@ namespace robomod {
             return dp::Result<Urdf>::err(dp::Error::invalid_argument("no links"));
         }
 
-        for (TiXmlElement *joint = robot->FirstChildElement("joint"); joint;
+        for (tinyxml2::XMLElement *joint = robot->FirstChildElement("joint"); joint;
              joint = joint->NextSiblingElement("joint")) {
             auto parsed = parse_joint(joint);
             if (parsed.is_err()) {
