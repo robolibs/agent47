@@ -30,7 +30,7 @@
 
 #include <datapod/pods/spatial/robot/model.hpp>
 
-#include "tinyxml/txml.h"
+#include "txml.hpp"
 
 namespace robomod {
 
