@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.13] - 2026-02-01
+
+### <!-- 0 -->⛰️  Features
+
+- Add sensor parsing from URDF extensions
+
 ## [0.0.12] - 2026-02-01
 
 ### <!-- 0 -->⛰️  Features
