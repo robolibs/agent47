@@ -15,9 +15,11 @@
 namespace agent47 {
 
     // Protocol method IDs shared between agent47 and any netpipe backend.
-    static constexpr dp::u32 AGENT47_METHOD_COMMAND = 1;  // agent47 -> backend
-    static constexpr dp::u32 AGENT47_METHOD_FEEDBACK = 2; // backend -> agent47
-    static constexpr dp::u32 AGENT47_METHOD_SENSOR = 3;   // backend -> agent47 (generic sensor packet)
+    static constexpr dp::u32 AGENT47_METHOD_COMMAND = 1;   // agent47 -> backend
+    static constexpr dp::u32 AGENT47_METHOD_FEEDBACK = 2;  // backend -> agent47
+    static constexpr dp::u32 AGENT47_METHOD_SENSOR = 3;    // backend -> agent47 (generic sensor packet)
+    static constexpr dp::u32 AGENT47_METHOD_HEARTBEAT = 4; // agent47 -> backend (keepalive/ping)
+    static constexpr dp::u32 AGENT47_METHOD_MODEL = 5;     // agent47 -> backend (dp::robot::Robot)
 
     /// Bridge implementation using netpipe::Pipe + netpipe::Remote<Bidirect>.
     ///
@@ -99,6 +101,30 @@ namespace agent47 {
             }
             auto msg = serialize_command(cmd);
             auto res = rpc_->call(AGENT47_METHOD_COMMAND, msg, 1000);
+            return res.is_ok();
+        }
+
+        /// Send a lightweight heartbeat to the remote side.
+        ///
+        /// Returns false if not connected or the remote does not respond.
+        bool heartbeat(dp::i32 timeout_ms = 1000) {
+            if (!rpc_ || !is_connected()) {
+                return false;
+            }
+            netpipe::Message msg;
+            auto res = rpc_->call(AGENT47_METHOD_HEARTBEAT, msg, timeout_ms);
+            return res.is_ok();
+        }
+
+        /// Send a full dp::robot::Robot description through the pipe.
+        ///
+        /// The robot is datapod-serialized with Mode::WITH_VERSION.
+        bool model(dp::robot::Robot robot, dp::i32 timeout_ms = 1000) {
+            if (!rpc_ || !is_connected()) {
+                return false;
+            }
+            auto msg = serialize_robot(robot);
+            auto res = rpc_->call(AGENT47_METHOD_MODEL, msg, timeout_ms);
             return res.is_ok();
         }
 
@@ -278,6 +304,16 @@ namespace agent47 {
             } catch (...) {
                 return false;
             }
+        }
+
+        static netpipe::Message serialize_robot(dp::robot::Robot &robot) {
+            dp::ByteBuf buf;
+            try {
+                buf = dp::serialize<dp::Mode::WITH_VERSION>(robot);
+            } catch (...) {
+                return netpipe::Message{};
+            }
+            return netpipe::Message(buf.begin(), buf.end());
         }
     };
 
