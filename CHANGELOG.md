@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.11] - 2026-02-01
+
+### <!-- 1 -->🐛 Bug Fixes
+
+- Restore `inline` keywords in txml.hpp
+
 ## [0.0.10] - 2026-02-01
 
 ### <!-- 1 -->🐛 Bug Fixes
