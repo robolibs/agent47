@@ -8,9 +8,42 @@
 
 #include <datapod/robot.hpp>
 #include <datapod/serialization/buf.hpp>
+#include <datapod/serialization/serialize.hpp>
 
 namespace agent47 {
     namespace types {
+
+        // =========================================================================================
+        // Sensor payload types (carried in SensorPacket.payload)
+        // =========================================================================================
+
+        struct ImuData {
+            dp::f32 accel_x = 0.0F;
+            dp::f32 accel_y = 0.0F;
+            dp::f32 accel_z = 0.0F;
+            dp::f32 gyro_x = 0.0F;
+            dp::f32 gyro_y = 0.0F;
+            dp::f32 gyro_z = 0.0F;
+            dp::f32 yaw_rad = 0.0F;
+        };
+
+        struct GnssData {
+            dp::f64 latitude_deg = 0.0;
+            dp::f64 longitude_deg = 0.0;
+            dp::f64 altitude_m = 0.0;
+        };
+
+        struct LidarData {
+            dp::f32 angle_min = 0.0;
+            dp::f32 angle_max = 0.0;
+            dp::f32 angle_increment = 0.0;
+            dp::f32 time_increment = 0.0;
+            dp::f32 scan_time = 0.0;
+            dp::f32 range_min = 0.0;
+            dp::f32 range_max = 0.0;
+            dp::Vector<dp::f32> ranges_m;
+            dp::Vector<dp::f32> intensities;
+        };
 
         /// Discriminated wrapper for sensor samples transported over a Bridge.
         ///
@@ -34,6 +67,30 @@ namespace agent47 {
             SensorKind kind = SensorKind::Unknown;
             dp::ByteBuf payload;
         };
+
+        inline bool decode_lidar(const SensorPacket &pkt, LidarData &out) {
+            if (pkt.kind != SensorKind::Lidar) {
+                return false;
+            }
+            out = dp::deserialize<dp::Mode::WITH_VERSION, LidarData>(pkt.payload);
+            return true;
+        }
+
+        inline bool decode_imu(const SensorPacket &pkt, ImuData &out) {
+            if (pkt.kind != SensorKind::Imu) {
+                return false;
+            }
+            out = dp::deserialize<dp::Mode::WITH_VERSION, ImuData>(pkt.payload);
+            return true;
+        }
+
+        inline bool decode_gnss(const SensorPacket &pkt, GnssData &out) {
+            if (pkt.kind != SensorKind::Gnss) {
+                return false;
+            }
+            out = dp::deserialize<dp::Mode::WITH_VERSION, GnssData>(pkt.payload);
+            return true;
+        }
 
         /// Per-wheel state snapshot.
         struct WheelState {

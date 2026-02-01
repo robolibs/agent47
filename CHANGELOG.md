@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.15] - 2026-02-01
+
+### <!-- 0 -->⛰️  Features
+
+- Centralize sensor data types
+
 ## [0.0.14] - 2026-02-01
 
 ### <!-- 0 -->⛰️  Features

@@ -1,37 +1,34 @@
 #pragma once
 
 #include <agent47/sensor.hpp>
+#include <agent47/types.hpp>
 #include <datapod/datapod.hpp>
 
-struct ImuData {
-    dp::f32 accel_x = 0.0F;
-    dp::f32 accel_y = 0.0F;
-    dp::f32 accel_z = 0.0F;
-    dp::f32 gyro_x = 0.0F;
-    dp::f32 gyro_y = 0.0F;
-    dp::f32 gyro_z = 0.0F;
-    dp::f32 yaw_rad = 0.0F;
-};
+namespace agent47 {
+    namespace sensors {
 
-class ImuSensor : public agent47::Sensor<ImuData> {
-  public:
-    ImuSensor() = default;
-    ~ImuSensor() override = default;
+        class ImuSensor : public agent47::Sensor<agent47::types::ImuData> {
+          public:
+            ImuSensor() = default;
+            ~ImuSensor() override = default;
 
-    ImuSensor(const ImuSensor &) = delete;
-    ImuSensor &operator=(const ImuSensor &) = delete;
+            ImuSensor(const ImuSensor &) = delete;
+            ImuSensor &operator=(const ImuSensor &) = delete;
 
-    bool connect(const dp::String &endpoint) override {
-        (void)endpoint;
-        return false;
-    }
+            bool connect(const dp::String &endpoint) override {
+                (void)endpoint;
+                return false;
+            }
 
-    void disconnect() override {}
+            void disconnect() override {}
 
-    bool is_connected() const override { return false; }
+            bool is_connected() const override { return false; }
 
-    bool read(ImuData &out) override {
-        (void)out;
-        return false;
-    }
-};
+            bool read(agent47::types::ImuData &out) override {
+                (void)out;
+                return false;
+            }
+        };
+
+    } // namespace sensors
+} // namespace agent47
