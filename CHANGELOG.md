@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.14] - 2026-02-01
+
+### <!-- 0 -->⛰️  Features
+
+- Add heartbeat and robot model RPC methods
+
 ## [0.0.13] - 2026-02-01
 
 ### <!-- 0 -->⛰️  Features
