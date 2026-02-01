@@ -20,8 +20,6 @@
 #include "agent47/model/urdf.hpp"
 #include "agent47/types.hpp"
 
-namespace fs = std::filesystem;
-
 namespace agent47 {
     class Agent {
       public:
@@ -48,8 +46,8 @@ namespace agent47 {
             if (bridge) {
                 bridge_ = std::shared_ptr<Bridge>(bridge, [](Bridge *) {});
             }
-            fs::path urdf_path = fs::path(model_urdf.c_str());
-            if (!fs::exists(urdf_path)) {
+            std::filesystem::path urdf_path = std::filesystem::path(model_urdf.c_str());
+            if (!std::filesystem::exists(urdf_path)) {
                 echo::critical("Model file does not exist: ", urdf_path);
             }
             auto model_result = agent47::from_urdf_string(model_urdf);
