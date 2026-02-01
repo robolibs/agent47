@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.12] - 2026-02-01
+
+### <!-- 0 -->⛰️  Features
+
+- Implement generic sensor packet bridging
+
 ## [0.0.11] - 2026-02-01
 
 ### <!-- 1 -->🐛 Bug Fixes
