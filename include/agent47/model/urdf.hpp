@@ -809,6 +809,124 @@ namespace agent47 {
         }
     }
 
+    static inline bool str_ends_with(const dp::String &s, const char *suffix) {
+        const dp::usize n = s.size();
+        const dp::usize m = suffix ? std::strlen(suffix) : 0;
+        if (m == 0 || n < m) {
+            return false;
+        }
+        return std::strncmp(s.c_str() + (n - m), suffix, m) == 0;
+    }
+
+    static inline dp::Optional<datapod::robot::Sensor> parse_sensor_xml(const tinyxml2::XMLElement *sensor_xml) {
+        if (!sensor_xml) {
+            return dp::nullopt;
+        }
+
+        datapod::robot::Sensor s;
+        s.name = datapod::String(dp_string(sensor_xml->Attribute("name")).c_str());
+        s.type = datapod::String(dp_string(sensor_xml->Attribute("type")).c_str());
+
+        if (auto origin = parse_origin(const_cast<tinyxml2::XMLElement *>(sensor_xml->FirstChildElement("origin")));
+            origin.is_ok()) {
+            s.origin = origin.value();
+        } else {
+            s.origin = dp::Pose{};
+            s.origin.point = dp::Point{0.0, 0.0, 0.0};
+            s.origin.rotation = dp::Quaternion{1.0, 0.0, 0.0, 0.0};
+        }
+
+        // Flatten the rest of the sensor subtree (backend-agnostic).
+        // We use a generic prefix to avoid tying to gazebo/flatsim/etc.
+        flatten_attrs_into_props(s.props, "sensor", sensor_xml);
+        for (const tinyxml2::XMLElement *child = sensor_xml->FirstChildElement(); child;
+             child = child->NextSiblingElement()) {
+            const dp::String tag = dp_string(child->Name());
+            if (tag == "origin") {
+                continue;
+            }
+            dp::String pfx = "sensor";
+            pfx += ".";
+            pfx += tag;
+            flatten_attrs_into_props(s.props, pfx, child);
+            flatten_children_into_props(s.props, pfx, child);
+            if (child->FirstChildElement() == nullptr) {
+                if (const char *text = child->GetText()) {
+                    dp::String text_s = dp_string(text);
+                    if (!text_s.empty()) {
+                        s.props[datapod::String(pfx.c_str())] = datapod::String(text_s.c_str());
+                    }
+                }
+            }
+        }
+
+        // If missing, keep empty; callers may generate a name.
+        return s;
+    }
+
+    static inline void attach_sensor_to_link(datapod::robot::Model &model, const datapod::String &link_name,
+                                             const tinyxml2::XMLElement *sensor_xml) {
+        if (!sensor_xml) {
+            return;
+        }
+
+        for (dp::u32 i = 0; i < model.links.size(); ++i) {
+            if (model.links[i].name != link_name) {
+                continue;
+            }
+
+            auto s = parse_sensor_xml(sensor_xml);
+            if (!s.has_value()) {
+                return;
+            }
+            if (s->name.empty()) {
+                dp::String gen = dp::String(link_name.c_str());
+                gen += "_sensor";
+                s->name = datapod::String(gen.c_str());
+            }
+            model.links[i].sensor = s.value();
+            return;
+        }
+    }
+
+    static inline void parse_gazebo_like_sensor_blocks(datapod::robot::Model &model, tinyxml2::XMLElement *robot_xml) {
+        // Simulator-agnostic handling for <gazebo reference="..."> ... <sensor/> ... </gazebo>
+        // and other tags that end with "sim" (e.g. <flatsim>, <ignitionsim>) containing:
+        //   - either <sensor/> directly
+        //   - or nested <gazebo reference="..."> blocks
+        for (tinyxml2::XMLElement *child = robot_xml ? robot_xml->FirstChildElement() : nullptr; child;
+             child = child->NextSiblingElement()) {
+            const dp::String tag = dp_string(child->Name());
+            const bool is_gazebo = (tag == "gazebo");
+            const bool is_sim_container = is_gazebo || str_ends_with(tag, "sim");
+            if (!is_sim_container) {
+                continue;
+            }
+
+            // Case A: <gazebo reference="link"> ... <sensor/> ...
+            if (is_gazebo) {
+                const dp::String ref = dp_string(child->Attribute("reference"));
+                if (!ref.empty()) {
+                    if (tinyxml2::XMLElement *sensor = child->FirstChildElement("sensor")) {
+                        attach_sensor_to_link(model, datapod::String(ref.c_str()), sensor);
+                    }
+                }
+            }
+
+            // Case B: container has nested gazebo blocks
+            for (tinyxml2::XMLElement *gz = child->FirstChildElement("gazebo"); gz;
+                 gz = gz->NextSiblingElement("gazebo")) {
+                const dp::String ref = dp_string(gz->Attribute("reference"));
+                if (ref.empty()) {
+                    continue;
+                }
+                if (tinyxml2::XMLElement *sensor = gz->FirstChildElement("sensor")) {
+                    attach_sensor_to_link(model, datapod::String(ref.c_str()), sensor);
+                }
+            }
+        }
+    }
+
     static inline void parse_robot_props(datapod::robot::Model &model, tinyxml2::XMLElement *robot_xml) {
         for (tinyxml2::XMLElement *child = robot_xml ? robot_xml->FirstChildElement() : nullptr; child;
              child = child->NextSiblingElement()) {
@@ -825,7 +943,7 @@ namespace agent47 {
         for (tinyxml2::XMLElement *child = link_xml ? link_xml->FirstChildElement() : nullptr; child;
              child = child->NextSiblingElement()) {
             const dp::String tag = dp_string(child->Name());
-            if (tag == "inertial" || tag == "visual" || tag == "collision") {
+            if (tag == "inertial" || tag == "visual" || tag == "collision" || tag == "sensor") {
                 continue;
             }
             flatten_attrs_into_props(link.props, tag, child);
@@ -915,10 +1033,26 @@ namespace agent47 {
             for (dp::u32 i = 0; i < dp_model.value().links.size(); ++i) {
                 if (dp_model.value().links[i].name == datapod::String(name.c_str())) {
                     parse_link_props(dp_model.value().links[i], link_el);
+
+                    // Direct-in-link sensor extension: <link> ... <sensor/> ...
+                    if (tinyxml2::XMLElement *sensor = link_el->FirstChildElement("sensor")) {
+                        auto s = parse_sensor_xml(sensor);
+                        if (s.has_value()) {
+                            if (s->name.empty()) {
+                                dp::String gen = name;
+                                gen += "_sensor";
+                                s->name = datapod::String(gen.c_str());
+                            }
+                            dp_model.value().links[i].sensor = s.value();
+                        }
+                    }
                     break;
                 }
             }
         }
+
+        // Simulator blocks that reference a link (gazebo/ignition/flatsim/etc.).
+        parse_gazebo_like_sensor_blocks(dp_model.value(), robot);
 
         for (tinyxml2::XMLElement *joint_el = robot->FirstChildElement("joint"); joint_el;
              joint_el = joint_el->NextSiblingElement("joint")) {
