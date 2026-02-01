@@ -67,15 +67,14 @@ int main(int argc, char *argv[]) {
 
     echo("Name: ", name);
 
-    agent47::model::Robot model;
-    model.identity.uuid = name;
-    model.identity.name = name;
-    model.identity.type = "diff_drive";
-
-    model.body.steering_type = agent47::model::SteeringType::ACKERMANN;
+    dp::robot::Robot model;
+    model.id.uuid = datapod::sugar::uuid::generate_v4();
+    model.id.name = dp::String(name.c_str());
+    model.props[dp::String("drive_type")] = dp::String("diff_drive");
+    model.props[dp::String("steering_type")] = dp::String("ACKERMANN");
 
     agent47::Ros2Bridge ros;
-    ros.connect(model.identity);
+    ros.connect(model.id.name.c_str());
     agent47::Agent agent(model, &ros);
 
     TerminalRawMode raw;

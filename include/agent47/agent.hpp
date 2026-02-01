@@ -1,10 +1,13 @@
 #pragma once
 
+#include <echo/echo.hpp>
 #include <memory>
 
 #include <drivekit/tracker.hpp>
 #include <echo/echo.hpp>
 #include <farmtrax/farmtrax.hpp>
+#include <filesystem>
+#include <iostream>
 #include <netpipe/netpipe.hpp>
 
 #include <datapod/pods/adapters/error.hpp>
@@ -14,17 +17,20 @@
 #include <datapod/pods/temporal/stamp.hpp>
 
 #include "agent47/bridge.hpp"
-#include "agent47/model/robot.hpp"
+#include "agent47/model/urdf.hpp"
 #include "agent47/types.hpp"
+
+namespace fs = std::filesystem;
 
 namespace agent47 {
     class Agent {
       public:
-        model::Robot model_;
+        dp::u8 speed = 1;
+        dp::robot::Robot model_;
         std::shared_ptr<Bridge> bridge_;
         dp::Geo datum;
         dp::Odom odom;
-        dp::Optional<dp::Twist> twist;
+        dp::Optional<dp::Twist> cmd;
         dp::Optional<dp::Path> path;
 
       private:
@@ -32,25 +38,32 @@ namespace agent47 {
         dp::Optional<drivekit::Tracker> tracker_;
 
       public:
-        /// Construct an agent around a robot model and an optional backend bridge.
-        ///
-        /// The bridge is non-owning and must outlive the Agent.
-        explicit Agent(model::Robot model, Bridge *bridge) : model_(std::move(model)) {
+        explicit Agent(dp::robot::Robot model, Bridge *bridge) : model_(std::move(model)) {
             if (bridge) {
-                bridge_ = std::shared_ptr<Bridge>(bridge, [](Bridge *) {
-                    // Non-owning: do not delete.
-                });
+                bridge_ = std::shared_ptr<Bridge>(bridge, [](Bridge *) {});
             }
         }
 
-        inline void set_velocity(const datapod::Twist &t) { twist = t; }
-        inline void clear_velocity() { twist.reset(); }
-        inline void brake() { twist = datapod::Twist{}; }
+        explicit Agent(dp::String model_urdf, dp::robot::Identity RoboId, Bridge *bridge) {
+            if (bridge) {
+                bridge_ = std::shared_ptr<Bridge>(bridge, [](Bridge *) {});
+            }
+            fs::path urdf_path = fs::path(model_urdf.c_str());
+            if (!fs::exists(urdf_path)) {
+                echo::critical("Model file does not exist: ", urdf_path);
+            }
+            auto model_result = agent47::from_urdf_string(model_urdf);
+            if (model_result.is_err()) {
+                echo::critical("Failed to load model: ", model_result.error());
+            }
+            model_.model = model_result.value();
+            model_.id = RoboId;
+        }
+
+        inline void set_velocity(const datapod::Twist &t) { cmd = t; }
+        inline void brake() { cmd = datapod::Twist{}; }
 
         inline void update(const types::Feedback &fb) {
-            model_.runtime.pose = fb.pose;
-            model_.runtime.twist = fb.twist;
-
             odom.pose = fb.pose;
             odom.twist = fb.twist;
         }
@@ -63,8 +76,8 @@ namespace agent47 {
             }
             if (!have_fb) {
                 fb.timestamp = dp::Stamp<types::Feedback>::now();
-                fb.value.pose = model_.runtime.pose;
-                fb.value.twist = model_.runtime.twist;
+                fb.value.pose = odom.pose;
+                fb.value.twist = odom.twist;
             }
             auto result = tick(fb, dt_s);
 
@@ -80,12 +93,11 @@ namespace agent47 {
         inline dp::Result<types::Command> tick(const dp::Stamp<types::Feedback> &fb, dp::f64 dt_s) {
             update(fb.value);
             types::Command out;
-            out.timestamp_ns = fb.timestamp;
-            if (twist.has_value()) {
-                auto s = static_cast<dp::f64>(model_.runtime.speed_scale);
+            if (cmd.has_value()) {
+                const auto s = speed;
                 out.valid = true;
-                out.twist.linear = twist->linear * s;
-                out.twist.angular = twist->angular * s;
+                out.twist.linear = odom.twist.linear * s;
+                out.twist.angular = odom.twist.angular * s;
                 return dp::Result<types::Command>::ok(out);
             }
             if (!tracker_) {
@@ -93,15 +105,13 @@ namespace agent47 {
             }
             drivekit::RobotState st;
             st.pose = fb.value.pose;
-            st.allow_move = model_.runtime.allow_move;
-            st.allow_reverse = model_.runtime.allow_reverse;
             st.timestamp = static_cast<dp::f64>(fb.timestamp) * 1e-9;
             st.velocity.linear = fb.value.twist.linear.vx;
             st.velocity.angular = fb.value.twist.angular.vz;
             auto cmd = tracker_->tick(st, static_cast<dp::f32>(dt_s), nullptr);
             out.valid = cmd.valid;
             if (cmd.valid) {
-                auto s = static_cast<dp::f64>(model_.runtime.speed_scale);
+                const auto s = speed;
                 out.twist.linear.vx = cmd.linear_velocity * s;
                 out.twist.angular.vz = cmd.angular_velocity * s;
             }

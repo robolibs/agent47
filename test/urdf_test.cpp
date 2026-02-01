@@ -31,7 +31,7 @@ TEST_CASE("urdf: parses basic model and captures extensions") {
 </robot>
 )_URDF";
 
-    auto parsed = robomod::from_urdf_string(xml);
+    auto parsed = agent47::from_urdf_string(xml);
     REQUIRE(parsed.is_ok());
 
     const auto &m = parsed.value();
@@ -71,7 +71,7 @@ TEST_CASE("urdf: parses joint limits and dynamics") {
 </robot>
 )_URDF";
 
-    auto parsed = robomod::from_urdf_string(xml);
+    auto parsed = agent47::from_urdf_string(xml);
     REQUIRE(parsed.is_ok());
 
     const auto &m = parsed.value();

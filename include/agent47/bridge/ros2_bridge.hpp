@@ -19,10 +19,10 @@
     #include <turtlesim/msg/pose.hpp>
 
     #include "agent47/bridge.hpp"
-    #include "agent47/model/robot.hpp"
     #include "agent47/sensors/gnss.hpp"
     #include "agent47/sensors/imu.hpp"
     #include "agent47/sensors/lidar.hpp"
+    #include <datapod/robot.hpp>
 
 namespace agent47 {
 
@@ -39,21 +39,6 @@ namespace agent47 {
 
         Ros2Bridge(const Ros2Bridge &) = delete;
         Ros2Bridge &operator=(const Ros2Bridge &) = delete;
-
-        /// Convenience overload: connect using a robot identity.
-        ///
-        /// Uses identity.name as the namespace root.
-        /// - "turtle1" -> topics like "/turtle1/pose", "/turtle1/cmd_vel"
-        /// - "/turtle1" -> same (leading slash kept)
-        bool connect(const model::Identity &id) {
-            if (id.name.empty()) {
-                return connect("/");
-            }
-            if (id.name[0] == '/') {
-                return connect(id.name);
-            }
-            return connect(std::string("/") + id.name);
-        }
 
         bool connect(const std::string &ns) override {
             if (!rclcpp::ok()) {
@@ -73,7 +58,6 @@ namespace agent47 {
                     const auto ns = static_cast<dp::i64>(msg->header.stamp.sec) * 1'000'000'000LL +
                                     static_cast<dp::i64>(msg->header.stamp.nanosec);
                     last_fb_.timestamp = ns;
-                    last_fb_.value.tick_seq++;
                     last_fb_.value.pose.point.x = msg->pose.pose.position.x;
                     last_fb_.value.pose.point.y = msg->pose.pose.position.y;
                     last_fb_.value.pose.point.z = msg->pose.pose.position.z;
@@ -103,7 +87,6 @@ namespace agent47 {
 
                     // turtlesim provides planar pose + yaw + linear/angular velocity.
                     last_fb_.timestamp = ns;
-                    last_fb_.value.tick_seq++;
                     last_fb_.value.pose.point.x = static_cast<dp::f64>(msg->x);
                     last_fb_.value.pose.point.y = static_cast<dp::f64>(msg->y);
                     last_fb_.value.pose.point.z = 0.0;

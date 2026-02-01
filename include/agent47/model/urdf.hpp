@@ -30,7 +30,7 @@
 
 #include <txml.hpp>
 
-namespace robomod {
+namespace agent47 {
 
     // Props-based parsing: non-core elements are flattened into props maps
     // on datapod::robot::{Model,Link,Joint}.
@@ -937,4 +937,4 @@ namespace robomod {
         return dp::Result<datapod::robot::Model>::ok(dp_model.value());
     }
 
-} // namespace robomod
+} // namespace agent47

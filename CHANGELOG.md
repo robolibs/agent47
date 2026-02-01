@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.8] - 2026-02-01
+
+### <!-- 0 -->⛰️  Features
+
+- Simplify ROS2 bridge connection and data types
+- Integrate datapod::robot for robot model
+
 ## [0.0.7] - 2026-01-31
 
 ### <!-- 0 -->⛰️  Features
