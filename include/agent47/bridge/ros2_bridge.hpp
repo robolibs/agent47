@@ -23,6 +23,7 @@
     #include "agent47/sensors/imu.hpp"
     #include "agent47/sensors/lidar.hpp"
     #include <datapod/robot.hpp>
+    #include <datapod/serialization/serialize.hpp>
 
 namespace agent47 {
 
@@ -241,6 +242,44 @@ namespace agent47 {
                 fb_ready_ = false;
                 return true;
             }
+            return false;
+        }
+
+        bool sensor(types::SensorPacket &pkt, dp::i32 /*timeout_ms*/ = 100) override {
+            if (!node_) {
+                return false;
+            }
+            rclcpp::spin_some(node_);
+
+            std::lock_guard<std::mutex> lock(fb_mutex_);
+            const dp::i64 ts = static_cast<dp::i64>(node_->now().nanoseconds());
+
+            if (lidar_ready_) {
+                pkt.timestamp = last_lidar_.timestamp;
+                pkt.kind = types::SensorKind::Lidar;
+                auto val = last_lidar_.value;
+                pkt.payload = dp::serialize<dp::Mode::WITH_VERSION>(val);
+                lidar_ready_ = false;
+                return true;
+            }
+            if (imu_ready_) {
+                pkt.timestamp = last_imu_.timestamp;
+                pkt.kind = types::SensorKind::Imu;
+                auto val = last_imu_.value;
+                pkt.payload = dp::serialize<dp::Mode::WITH_VERSION>(val);
+                imu_ready_ = false;
+                return true;
+            }
+            if (gnss_ready_) {
+                pkt.timestamp = last_gnss_.timestamp;
+                pkt.kind = types::SensorKind::Gnss;
+                auto val = last_gnss_.value;
+                pkt.payload = dp::serialize<dp::Mode::WITH_VERSION>(val);
+                gnss_ready_ = false;
+                return true;
+            }
+
+            (void)ts;
             return false;
         }
 

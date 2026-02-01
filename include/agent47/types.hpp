@@ -7,9 +7,33 @@
 #include <datapod/spatial.hpp>
 
 #include <datapod/robot.hpp>
+#include <datapod/serialization/buf.hpp>
 
 namespace agent47 {
     namespace types {
+
+        /// Discriminated wrapper for sensor samples transported over a Bridge.
+        ///
+        /// For PipeBridge, the payload is a datapod-serialized buffer encoded with
+        /// Mode::WITH_VERSION so the receiver can dispatch by type hash.
+        ///
+        /// Intended usage:
+        /// - call Bridge::sensor(packet)
+        /// - inspect packet.kind
+        /// - deserialize packet.payload into the matching type
+        enum class SensorKind : dp::u8 {
+            Unknown = 0,
+            Lidar = 1,
+            Imu = 2,
+            Gnss = 3,
+            Custom = 100,
+        };
+
+        struct SensorPacket {
+            dp::i64 timestamp = 0;
+            SensorKind kind = SensorKind::Unknown;
+            dp::ByteBuf payload;
+        };
 
         /// Per-wheel state snapshot.
         struct WheelState {
