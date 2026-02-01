@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.9] - 2026-02-01
+
+### <!-- 0 -->⛰️  Features
+
+- Explicitly qualify std::filesystem usage
+
 ## [0.0.8] - 2026-02-01
 
 ### <!-- 0 -->⛰️  Features
