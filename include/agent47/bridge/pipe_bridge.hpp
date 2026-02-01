@@ -186,7 +186,6 @@ namespace agent47 {
         //
         // Wire layout:
         //   [timestamp_ns:8]
-        //   [tick_seq:8]
         //   [pose.point x/y/z:24][pose.rotation w/x/y/z:32]
         //   [twist.linear vx/vy/vz:24][twist.angular vx/vy/vz:24]
         //   [num_wheels:4] { [angle_rad:8][speed_rps:8] } * N
@@ -200,7 +199,7 @@ namespace agent47 {
         //     [ax:4][ay:4][az:4][gz:4][yaw:4]
         // ---------------------------------------------------------------------------
 
-        static constexpr dp::usize FEEDBACK_FIXED_SIZE = 8 + 8 + 24 + 32 + 24 + 24 + 4 + 1; // 125
+        static constexpr dp::usize FEEDBACK_FIXED_SIZE = 8 + 24 + 32 + 24 + 24 + 4 + 1; // 117
 
         static bool deserialize_feedback(const netpipe::Message &msg, dp::Stamp<types::Feedback> &fb) {
             if (msg.size() < FEEDBACK_FIXED_SIZE) {
@@ -210,7 +209,6 @@ namespace agent47 {
             const dp::u8 *ptr = msg.data();
 
             fb.timestamp = read_val<dp::i64>(ptr);
-            fb.value.tick_seq = read_val<dp::u64>(ptr);
 
             fb.value.pose.point.x = read_val<dp::f64>(ptr);
             fb.value.pose.point.y = read_val<dp::f64>(ptr);

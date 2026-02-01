@@ -40,25 +40,6 @@ namespace agent47 {
         Ros2Bridge(const Ros2Bridge &) = delete;
         Ros2Bridge &operator=(const Ros2Bridge &) = delete;
 
-        /// Convenience overload: connect using a robot identity.
-        ///
-        /// Uses id.name as the namespace root.
-        /// - "turtle1" -> topics like "/turtle1/pose", "/turtle1/cmd_vel"
-        /// - "/turtle1" -> same (leading slash kept)
-        bool connect(const dp::robot::Robot &robot) { return connect(robot.id); }
-
-        /// Convenience overload: connect using a robot identity.
-        bool connect(const dp::robot::Identity &id) {
-            if (id.name.empty()) {
-                return connect("/");
-            }
-            const char *name = id.name.c_str();
-            if (name[0] == '/') {
-                return connect(std::string(name));
-            }
-            return connect(std::string("/") + name);
-        }
-
         bool connect(const std::string &ns) override {
             if (!rclcpp::ok()) {
                 rclcpp::init(0, nullptr);
@@ -77,7 +58,6 @@ namespace agent47 {
                     const auto ns = static_cast<dp::i64>(msg->header.stamp.sec) * 1'000'000'000LL +
                                     static_cast<dp::i64>(msg->header.stamp.nanosec);
                     last_fb_.timestamp = ns;
-                    last_fb_.value.tick_seq++;
                     last_fb_.value.pose.point.x = msg->pose.pose.position.x;
                     last_fb_.value.pose.point.y = msg->pose.pose.position.y;
                     last_fb_.value.pose.point.z = msg->pose.pose.position.z;
@@ -107,7 +87,6 @@ namespace agent47 {
 
                     // turtlesim provides planar pose + yaw + linear/angular velocity.
                     last_fb_.timestamp = ns;
-                    last_fb_.value.tick_seq++;
                     last_fb_.value.pose.point.x = static_cast<dp::f64>(msg->x);
                     last_fb_.value.pose.point.y = static_cast<dp::f64>(msg->y);
                     last_fb_.value.pose.point.z = 0.0;

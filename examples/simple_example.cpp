@@ -55,7 +55,7 @@ int main() {
     model.props[dp::String("steering_type")] = dp::String("ACKERMANN");
 
     agent47::Ros2Bridge ros;
-    ros.connect(model);
+    ros.connect(model.id.name.c_str());
     agent47::Agent agent(model, &ros);
 
     TerminalRawMode raw;

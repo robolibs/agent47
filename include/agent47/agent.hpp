@@ -44,15 +44,15 @@ namespace agent47 {
             }
         }
 
-        explicit Agent(std::string model_urdf, dp::robot::Identity RoboId, Bridge *bridge) {
+        explicit Agent(dp::String model_urdf, dp::robot::Identity RoboId, Bridge *bridge) {
             if (bridge) {
                 bridge_ = std::shared_ptr<Bridge>(bridge, [](Bridge *) {});
             }
-            fs::path urdf_path = fs::path(model_urdf);
+            fs::path urdf_path = fs::path(model_urdf.c_str());
             if (!fs::exists(urdf_path)) {
                 echo::critical("Model file does not exist: ", urdf_path);
             }
-            auto model_result = agent47::from_urdf_string(dp::String(model_urdf.c_str()));
+            auto model_result = agent47::from_urdf_string(model_urdf);
             if (model_result.is_err()) {
                 echo::critical("Failed to load model: ", model_result.error());
             }
@@ -93,7 +93,6 @@ namespace agent47 {
         inline dp::Result<types::Command> tick(const dp::Stamp<types::Feedback> &fb, dp::f64 dt_s) {
             update(fb.value);
             types::Command out;
-            out.timestamp_ns = fb.timestamp;
             if (cmd.has_value()) {
                 const auto s = speed;
                 out.valid = true;
