@@ -2,6 +2,7 @@
 
 #include <condition_variable>
 #include <cstring>
+#include <deque>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -9,12 +10,14 @@
 #include <netpipe/netpipe.hpp>
 
 #include "agent47/bridge.hpp"
+#include <datapod/serialization/serialize.hpp>
 
 namespace agent47 {
 
     // Protocol method IDs shared between agent47 and any netpipe backend.
     static constexpr dp::u32 AGENT47_METHOD_COMMAND = 1;  // agent47 -> backend
     static constexpr dp::u32 AGENT47_METHOD_FEEDBACK = 2; // backend -> agent47
+    static constexpr dp::u32 AGENT47_METHOD_SENSOR = 3;   // backend -> agent47 (generic sensor packet)
 
     /// Bridge implementation using netpipe::Pipe + netpipe::Remote<Bidirect>.
     ///
@@ -65,6 +68,18 @@ namespace agent47 {
                                       return dp::result::ok(netpipe::Message{});
                                   });
 
+            // Backend calls us on AGENT47_METHOD_SENSOR with a datapod-serialized SensorPacket.
+            rpc_->register_method(AGENT47_METHOD_SENSOR,
+                                  [this](const netpipe::Message &msg) -> dp::Res<netpipe::Message> {
+                                      types::SensorPacket pkt;
+                                      if (deserialize_sensor(msg, pkt)) {
+                                          std::lock_guard<std::mutex> lock(sensor_mutex_);
+                                          sensor_q_.push_back(std::move(pkt));
+                                          sensor_cv_.notify_one();
+                                      }
+                                      return dp::result::ok(netpipe::Message{});
+                                  });
+
             return true;
         }
 
@@ -100,6 +115,19 @@ namespace agent47 {
             return false;
         }
 
+        bool sensor(types::SensorPacket &pkt, dp::i32 timeout_ms = 100) override {
+            std::unique_lock<std::mutex> lock(sensor_mutex_);
+            if (sensor_q_.empty()) {
+                sensor_cv_.wait_for(lock, std::chrono::milliseconds(timeout_ms), [this] { return !sensor_q_.empty(); });
+            }
+            if (sensor_q_.empty()) {
+                return false;
+            }
+            pkt = std::move(sensor_q_.front());
+            sensor_q_.pop_front();
+            return true;
+        }
+
       private:
         dp::Optional<netpipe::Pipe> pipe_;
         std::unique_ptr<netpipe::Remote<netpipe::Bidirect>> rpc_;
@@ -108,6 +136,10 @@ namespace agent47 {
         std::condition_variable fb_cv_;
         dp::Stamp<types::Feedback> last_fb_;
         bool fb_ready_ = false;
+
+        mutable std::mutex sensor_mutex_;
+        std::condition_variable sensor_cv_;
+        std::deque<types::SensorPacket> sensor_q_;
 
         // ---------------------------------------------------------------------------
         // Endpoint parsing
@@ -233,6 +265,19 @@ namespace agent47 {
             }
             dp::u8 flags = read_val<dp::u8>(ptr);
             return true;
+        }
+
+        static bool deserialize_sensor(const netpipe::Message &msg, types::SensorPacket &pkt) {
+            if (msg.empty()) {
+                return false;
+            }
+            dp::ByteBuf buf(msg.begin(), msg.end());
+            try {
+                pkt = dp::deserialize<dp::Mode::WITH_VERSION, types::SensorPacket>(buf);
+                return true;
+            } catch (...) {
+                return false;
+            }
         }
     };
 

@@ -20,6 +20,11 @@ namespace agent47 {
 
         virtual bool send(const dp::Stamp<types::Command> &cmd) = 0;
         virtual bool recv(dp::Stamp<types::Feedback> &fb, dp::i32 timeout_ms = 100) = 0;
+
+        /// Receive the next available sensor packet.
+        ///
+        /// Returns false if no packet is available within timeout.
+        virtual bool sensor(types::SensorPacket &pkt, dp::i32 timeout_ms = 100) = 0;
     };
 
 } // namespace agent47
