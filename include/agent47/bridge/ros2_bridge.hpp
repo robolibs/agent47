@@ -27,6 +27,10 @@
 
 namespace agent47 {
 
+    using types::GnssData;
+    using types::ImuData;
+    using types::LidarData;
+
     /// Bridge implementation backed by ROS 2 topics.
     ///
     /// connect(ns) creates a node in the given namespace and subscribes to
