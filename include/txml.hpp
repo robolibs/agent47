@@ -21,92 +21,19 @@ must not be misrepresented as being the original software.
 distribution.
 */
 
-#ifndef TINYXML2_INCLUDED
-#define TINYXML2_INCLUDED
+#pragma once
 
-#if defined(ANDROID_NDK) || defined(__BORLANDC__) || defined(__QNXNTO__)
-    #include <ctype.h>
-    #include <limits.h>
-    #include <stdio.h>
-    #include <stdlib.h>
-    #include <string.h>
-    #if defined(__PS3__)
-        #include <stddef.h>
-    #endif
-#else
-    #include <cctype>
-    #include <climits>
-    #include <cstdio>
-    #include <cstdlib>
-    #include <cstring>
-#endif
-#include <stdint.h>
+#include <cassert>
+#include <cctype>
+#include <climits>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
-/*
-        gcc:
-        g++ -Wall -DTINYXML2_DEBUG tinyxml2.cpp xmltest.cpp -o gccxmltest.exe
+#define TINYXML2_LIB
+#define TIXMLASSERT assert
 
-    Formatting, Artistic Style:
-        AStyle.exe --style=1tbs --indent-switches --break-closing-brackets --indent-preprocessor tinyxml2.cpp tinyxml2.h
-*/
-
-#if defined(_DEBUG) || defined(__DEBUG__)
-    #ifndef TINYXML2_DEBUG
-        #define TINYXML2_DEBUG
-    #endif
-#endif
-
-#ifdef _MSC_VER
-    #pragma warning(push)
-    #pragma warning(disable : 4251)
-#endif
-
-#ifdef _MSC_VER
-    #ifdef TINYXML2_EXPORT
-        #define TINYXML2_LIB __declspec(dllexport)
-    #elif defined(TINYXML2_IMPORT)
-        #define TINYXML2_LIB __declspec(dllimport)
-    #else
-        #define TINYXML2_LIB
-    #endif
-#elif __GNUC__ >= 4
-    #define TINYXML2_LIB __attribute__((visibility("default")))
-#else
-    #define TINYXML2_LIB
-#endif
-
-#if !defined(TIXMLASSERT)
-    #if defined(TINYXML2_DEBUG)
-        #if defined(_MSC_VER)
-            #// "(void)0," is for suppressing C4127 warning in "assert(false)", "assert(true)" and the like
-            #define TIXMLASSERT(x)                                                                                     \
-                do {                                                                                                   \
-                    if (!((void)0, (x))) {                                                                             \
-                        __debugbreak();                                                                                \
-                    }                                                                                                  \
-                } while (false)
-        #elif defined(ANDROID_NDK)
-            #include <android/log.h>
-            #define TIXMLASSERT(x)                                                                                     \
-                do {                                                                                                   \
-                    if (!(x)) {                                                                                        \
-                        __android_log_assert("assert", "grinliz", "ASSERT in '%s' at %d.", __FILE__, __LINE__);        \
-                    }                                                                                                  \
-                } while (false)
-        #else
-            #include <assert.h>
-            #define TIXMLASSERT assert
-        #endif
-    #else
-        #define TIXMLASSERT(x)                                                                                         \
-            do {                                                                                                       \
-            } while (false)
-    #endif
-#endif
-
-/* Versioning, past 1.0.14:
-        http://semver.org/
-*/
 static const int TIXML2_MAJOR_VERSION = 11;
 static const int TIXML2_MINOR_VERSION = 0;
 static const int TIXML2_PATCH_VERSION = 0;
@@ -114,12 +41,6 @@ static const int TIXML2_PATCH_VERSION = 0;
 #define TINYXML2_MAJOR_VERSION 11
 #define TINYXML2_MINOR_VERSION 0
 #define TINYXML2_PATCH_VERSION 0
-
-// A fixed element depth limit is problematic. There needs to be a
-// limit to avoid a stack overflow. However, that limit varies per
-// system, and the capacity of the stack. On the other hand, it's a trivial
-// attack that can result from ill, malicious, or even correctly formed XML,
-// so there needs to be a limit in place.
 static const int TINYXML2_MAX_ELEMENT_DEPTH = 500;
 
 namespace tinyxml2 {
@@ -378,9 +299,7 @@ namespace tinyxml2 {
             }
             --_currentAllocs;
             Item *item = static_cast<Item *>(mem);
-#ifdef TINYXML2_DEBUG
             memset(item, 0xfe, sizeof(*item));
-#endif
             item->next = _root;
             _root = item;
         }
@@ -395,13 +314,13 @@ namespace tinyxml2 {
 
         // This number is perf sensitive. 4k seems like a good tradeoff on my machine.
         // The test file is large, 170k.
-        // Release:		VS2010 gcc(no opt)
-        //		1k:		4000
-        //		2k:		4000
-        //		4k:		3900	21000
-        //		16k:	5200
-        //		32k:	4300
-        //		64k:	4000	21000
+        // Release:     VS2010 gcc(no opt)
+        //      1k:     4000
+        //      2k:     4000
+        //      4k:     3900    21000
+        //      16k:    5200
+        //      32k:    4300
+        //      64k:    4000    21000
         // Declared public because some compilers do not accept to use ITEMS_PER_BLOCK
         // in private part if ITEMS_PER_BLOCK is private
         enum { ITEMS_PER_BLOCK = (4 * 1024) / ITEM_SIZE };
@@ -600,13 +519,13 @@ namespace tinyxml2 {
             will also be deleted.
 
             @verbatim
-            A Document can contain:	Element	(container or leaf)
+            A Document can contain: Element (container or leaf)
                                                             Comment (leaf)
                                                             Unknown (leaf)
                                                             Declaration( leaf )
 
-            An Element can contain:	Element (container or leaf)
-                                                            Text	(leaf)
+            An Element can contain: Element (container or leaf)
+                                                            Text    (leaf)
                                                             Attributes (not on tree)
                                                             Comment (leaf)
                                                             Unknown (leaf)
@@ -658,11 +577,11 @@ namespace tinyxml2 {
 
         /** The meaning of 'value' changes for the specific type.
             @verbatim
-            Document:	empty (NULL is returned, not an empty string)
-            Element:	name of the element
-            Comment:	the comment text
-            Unknown:	the tag contents
-            Text:		the text string
+            Document:   empty (NULL is returned, not an empty string)
+            Element:    name of the element
+            Comment:    the comment text
+            Unknown:    the tag contents
+            Text:       the text string
             @endverbatim
         */
         const char *Value() const;
@@ -1200,7 +1119,7 @@ namespace tinyxml2 {
 
             @verbatim
             int value = 10;
-            QueryIntAttribute( "foo", &value );		// if "foo" isn't found, value will still be 10
+            QueryIntAttribute( "foo", &value );     // if "foo" isn't found, value will still be 10
             @endverbatim
         */
         XMLError QueryIntAttribute(const char *name, int *value) const {
@@ -1287,7 +1206,7 @@ namespace tinyxml2 {
 
             @verbatim
             int value = 10;
-            QueryAttribute( "foo", &value );		// if "foo" isn't found, value will still be 10
+            QueryAttribute( "foo", &value );        // if "foo" isn't found, value will still be 10
             @endverbatim
         */
         XMLError QueryAttribute(const char *name, int *value) const { return QueryIntAttribute(name, value); }
@@ -1461,7 +1380,7 @@ namespace tinyxml2 {
 
             @verbatim
                     int x = 0;
-                    float y = 0;	// types of x and y are contrived for example
+                    float y = 0;    // types of x and y are contrived for example
                     const XMLElement* xElement = pointElement->FirstChildElement( "x" );
                     const XMLElement* yElement = pointElement->FirstChildElement( "y" );
                     xElement->QueryIntText( &x );
@@ -2133,102 +2052,29 @@ namespace tinyxml2 {
 
 } // namespace tinyxml2
 
-#if defined(_MSC_VER)
-    #pragma warning(pop)
-#endif
-
 // ============================================================================
 // IMPLEMENTATION - ALL INLINE
 // ============================================================================
 
 #include <new>
-#if defined(ANDROID_NDK) || defined(__BORLANDC__) || defined(__QNXNTO__) || defined(__CC_ARM)
-    #include <stdarg.h>
-    #include <stddef.h>
-#else
-    #include <cstdarg>
-    #include <cstddef>
-#endif
 
-#ifndef __has_attribute
-    #define __has_attribute(x) 0
-#endif
-#ifndef __has_cpp_attribute
-    #define __has_cpp_attribute(x) 0
-#endif
+#include <cstdarg>
+#include <cstddef>
 
-#if defined(_MSC_VER)
-    #define TIXML_FALLTHROUGH (void(0))
-#elif (__cplusplus >= 201703L && __has_cpp_attribute(fallthrough))
-    #define TIXML_FALLTHROUGH [[fallthrough]]
-#elif __has_cpp_attribute(clang::fallthrough)
-    #define TIXML_FALLTHROUGH [[clang::fallthrough]]
-#elif __has_attribute(fallthrough)
-    #define TIXML_FALLTHROUGH __attribute__((fallthrough))
-#else
-    #define TIXML_FALLTHROUGH (void(0))
-#endif
+#define TIXML_FALLTHROUGH [[fallthrough]]
 
-#if defined(_MSC_VER) && (_MSC_VER >= 1400) && (!defined WINCE)
-static inline int TIXML_SNPRINTF(char *buffer, size_t size, const char *format, ...) {
-    va_list va;
-    va_start(va, format);
-    const int result = vsnprintf_s(buffer, size, _TRUNCATE, format, va);
-    va_end(va);
-    return result;
-}
-static inline int TIXML_VSNPRINTF(char *buffer, size_t size, const char *format, va_list va) {
-    return vsnprintf_s(buffer, size, _TRUNCATE, format, va);
-}
-    #define TIXML_VSCPRINTF _vscprintf
-    #define TIXML_SSCANF sscanf_s
-#elif defined _MSC_VER
-    #define TIXML_SNPRINTF _snprintf
-    #define TIXML_VSNPRINTF _vsnprintf
-    #define TIXML_SSCANF sscanf
-    #if (_MSC_VER < 1400) && (!defined WINCE)
-        #define TIXML_VSCPRINTF _vscprintf
-    #else
-static inline int TIXML_VSCPRINTF(const char *format, va_list va) {
-    int len = 512;
-    for (;;) {
-        len = len * 2;
-        char *str = new char[len]();
-        const int required = _vsnprintf(str, len, format, va);
-        delete[] str;
-        if (required != -1) {
-            len = required;
-            break;
-        }
-    }
-    return len;
-}
-    #endif
-#else
-    #define TIXML_SNPRINTF snprintf
-    #define TIXML_VSNPRINTF vsnprintf
+#define TIXML_SNPRINTF snprintf
+#define TIXML_VSNPRINTF vsnprintf
 static inline int TIXML_VSCPRINTF(const char *format, va_list va) {
     int len = vsnprintf(0, 0, format, va);
     TIXMLASSERT(len >= 0);
     return len;
 }
-    #define TIXML_SSCANF sscanf
-#endif
 
-#if defined(_WIN64)
-    #define TIXML_FSEEK _fseeki64
-    #define TIXML_FTELL _ftelli64
-#elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) ||                     \
-    defined(__DragonFly__) || defined(__CYGWIN__)
-    #define TIXML_FSEEK fseeko
-    #define TIXML_FTELL ftello
-#elif defined(__ANDROID__) && __ANDROID_API__ > 24
-    #define TIXML_FSEEK fseeko64
-    #define TIXML_FTELL ftello64
-#else
-    #define TIXML_FSEEK fseek
-    #define TIXML_FTELL ftell
-#endif
+#define TIXML_SSCANF sscanf
+
+#define TIXML_FSEEK fseek
+#define TIXML_FTELL ftell
 
 static const char LINE_FEED = static_cast<char>(0x0a);
 static const char LF = LINE_FEED;
@@ -3075,13 +2921,13 @@ namespace tinyxml2 {
     char *XMLNode::ParseDeep(char *p, StrPair *parentEndTag, int *curLineNumPtr) {
         // This is a recursive method, but thinking about it "at the current level"
         // it is a pretty simple flat list:
-        //		<foo/>
-        //		<!-- comment -->
+        //      <foo/>
+        //      <!-- comment -->
         //
         // With a special case:
-        //		<foo>
-        //		</foo>
-        //		<!-- comment -->
+        //      <foo>
+        //      </foo>
+        //      <!-- comment -->
         //
         // Where the closing element (/foo) *must* be the next thing after the opening
         // element, and the names must match. BUT the tricky bit is that the closing
@@ -3900,8 +3746,8 @@ namespace tinyxml2 {
     }
 
     //
-    //	<ele></ele>
-    //	<ele>foo<b>bar</b></ele>
+    //  <ele></ele>
+    //  <ele>foo<b>bar</b></ele>
     //
     inline char *XMLElement::ParseDeep(char *p, StrPair *parentEndTag, int *curLineNumPtr) {
         // Read the element name.
@@ -4006,30 +3852,19 @@ namespace tinyxml2 {
             DeleteNode(_unlinked[0]); // Will remove from _unlinked as part of delete.
         }
 
-#ifdef TINYXML2_DEBUG
         const bool hadError = Error();
-#endif
         ClearError();
 
         delete[] _charBuffer;
         _charBuffer = 0;
         _parsingDepth = 0;
 
-#if 0
-    _textPool.Trace( "text" );
-    _elementPool.Trace( "element" );
-    _commentPool.Trace( "comment" );
-    _attributePool.Trace( "attribute" );
-#endif
-
-#ifdef TINYXML2_DEBUG
         if (!hadError) {
             TIXMLASSERT(_elementPool.CurrentAllocs() == _elementPool.Untracked());
             TIXMLASSERT(_attributePool.CurrentAllocs() == _attributePool.Untracked());
             TIXMLASSERT(_textPool.CurrentAllocs() == _textPool.Untracked());
             TIXMLASSERT(_commentPool.CurrentAllocs() == _commentPool.Untracked());
         }
-#endif
     }
 
     inline void XMLDocument::DeepCopy(XMLDocument *target) const {
@@ -4077,15 +3912,7 @@ namespace tinyxml2 {
     static inline FILE *callfopen(const char *filepath, const char *mode) {
         TIXMLASSERT(filepath);
         TIXMLASSERT(mode);
-#if defined(_MSC_VER) && (_MSC_VER >= 1400) && (!defined WINCE)
-        FILE *fp = 0;
-        const errno_t err = fopen_s(&fp, filepath, mode);
-        if (err) {
-            return 0;
-        }
-#else
         FILE *fp = fopen(filepath, mode);
-#endif
         return fp;
     }
 
@@ -4673,5 +4500,3 @@ namespace tinyxml2 {
     }
 
 } // namespace tinyxml2
-
-#endif // TINYXML2_INCLUDED

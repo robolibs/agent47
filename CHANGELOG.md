@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.10] - 2026-02-01
+
+### <!-- 1 -->🐛 Bug Fixes
+
+- Fix build with modern compilers and platforms
+
 ## [0.0.9] - 2026-02-01
 
 ### <!-- 0 -->⛰️  Features
