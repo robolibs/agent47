@@ -6,7 +6,7 @@
 #include <datapod/adapters.hpp>
 #include <datapod/spatial.hpp>
 
-#include "agent47/model/robot.hpp"
+#include <datapod/robot.hpp>
 
 namespace agent47 {
     namespace types {

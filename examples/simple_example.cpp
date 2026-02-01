@@ -48,15 +48,14 @@ namespace {
 int main() {
 #ifdef AGENT47_HAS_ROS2
 
-    agent47::model::Robot model;
-    model.identity.uuid = "robot_0";
-    model.identity.name = "turtle1";
-    model.identity.type = "diff_drive";
-
-    model.body.steering_type = agent47::model::SteeringType::ACKERMANN;
+    dp::robot::Robot model;
+    model.id.uuid = datapod::sugar::uuid::generate_v4();
+    model.id.name = dp::String("turtle1");
+    model.props[dp::String("drive_type")] = dp::String("diff_drive");
+    model.props[dp::String("steering_type")] = dp::String("ACKERMANN");
 
     agent47::Ros2Bridge ros;
-    ros.connect(model.identity);
+    ros.connect(model);
     agent47::Agent agent(model, &ros);
 
     TerminalRawMode raw;

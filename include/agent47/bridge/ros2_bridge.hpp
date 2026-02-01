@@ -19,10 +19,10 @@
     #include <turtlesim/msg/pose.hpp>
 
     #include "agent47/bridge.hpp"
-    #include "agent47/model/robot.hpp"
     #include "agent47/sensors/gnss.hpp"
     #include "agent47/sensors/imu.hpp"
     #include "agent47/sensors/lidar.hpp"
+    #include <datapod/robot.hpp>
 
 namespace agent47 {
 
@@ -42,17 +42,21 @@ namespace agent47 {
 
         /// Convenience overload: connect using a robot identity.
         ///
-        /// Uses identity.name as the namespace root.
+        /// Uses id.name as the namespace root.
         /// - "turtle1" -> topics like "/turtle1/pose", "/turtle1/cmd_vel"
         /// - "/turtle1" -> same (leading slash kept)
-        bool connect(const model::Identity &id) {
+        bool connect(const dp::robot::Robot &robot) { return connect(robot.id); }
+
+        /// Convenience overload: connect using a robot identity.
+        bool connect(const dp::robot::Identity &id) {
             if (id.name.empty()) {
                 return connect("/");
             }
-            if (id.name[0] == '/') {
-                return connect(id.name);
+            const char *name = id.name.c_str();
+            if (name[0] == '/') {
+                return connect(std::string(name));
             }
-            return connect(std::string("/") + id.name);
+            return connect(std::string("/") + name);
         }
 
         bool connect(const std::string &ns) override {
