@@ -3,12 +3,14 @@
 #include <echo/echo.hpp>
 #include <memory>
 
+#include <concord/concord.hpp>
 #include <drivekit/tracker.hpp>
 #include <echo/echo.hpp>
 #include <farmtrax/farmtrax.hpp>
 #include <filesystem>
 #include <iostream>
 #include <netpipe/netpipe.hpp>
+#include <nonsens/nonsens.hpp>
 
 #include <datapod/pods/adapters/error.hpp>
 #include <datapod/pods/adapters/optional.hpp>
@@ -27,25 +29,33 @@ namespace agent47 {
         dp::robot::Robot model_;
         std::shared_ptr<Bridge> bridge_;
         dp::Geo datum;
+        dp::Geo geopos;
         dp::Odom odom;
         dp::Optional<dp::Twist> cmd;
         dp::Optional<dp::Path> path;
 
-      private:
         dp::Optional<farmtrax::Farmtrax> farmtrax_;
         dp::Optional<drivekit::Tracker> tracker_;
 
-      public:
-        explicit Agent(dp::robot::Robot model, Bridge *bridge) : model_(std::move(model)) {
+        dp::Optional<nonsens::Nonsens> nonsens_;
+
+        explicit Agent(dp::robot::Robot model, Bridge *bridge, dp::Geo datum = dp::Geo{0, 0, 0},
+                       dp::Odom odom = dp::Odom{})
+            : model_(std::move(model)) {
             if (bridge) {
                 bridge_ = std::shared_ptr<Bridge>(bridge, [](Bridge *) {});
             }
+            this->datum = datum;
+            this->odom = odom;
         }
 
-        explicit Agent(dp::String model_urdf, dp::robot::Identity RoboId, Bridge *bridge) {
+        explicit Agent(dp::String model_urdf, dp::robot::Identity RoboId, Bridge *bridge,
+                       dp::Geo datum = dp::Geo{0, 0, 0}, dp::Odom odom = dp::Odom{}) {
             if (bridge) {
                 bridge_ = std::shared_ptr<Bridge>(bridge, [](Bridge *) {});
             }
+            this->datum = datum;
+            this->odom = odom;
             std::filesystem::path urdf_path = std::filesystem::path(model_urdf.c_str());
             if (!std::filesystem::exists(urdf_path)) {
                 echo::critical("Model file does not exist: ", urdf_path);
@@ -78,6 +88,12 @@ namespace agent47 {
                 fb.value.twist = odom.twist;
             }
             auto result = tick(fb, dt_s);
+
+            const concord::frame::ENU enu{odom.pose.point.x, odom.pose.point.y, odom.pose.point.z, datum};
+            const concord::earth::WGS wgs = concord::frame::to_wgs(enu);
+            geopos.latitude = wgs.latitude;
+            geopos.longitude = wgs.longitude;
+            geopos.altitude = wgs.altitude;
 
             echo::trace("Pose: ", fb.value.pose);
             echo::trace("Twist: ", fb.value.twist);
