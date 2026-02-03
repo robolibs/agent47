@@ -1,4 +1,5 @@
 #include <agent47.hpp>
+#include <argu/argu.hpp>
 #include <echo/echo.hpp>
 
 #include <termios.h>
@@ -7,64 +8,48 @@
 #include <chrono>
 #include <thread>
 
-namespace {
-    struct TerminalRawMode {
-        termios orig{};
-        bool active = false;
+int main(int argc, char *argv[]) {
 
-        TerminalRawMode() {
-            if (!isatty(STDIN_FILENO)) {
-                return;
-            }
-            if (tcgetattr(STDIN_FILENO, &orig) != 0) {
-                return;
-            }
-            termios raw = orig;
-            raw.c_lflag &= static_cast<unsigned long>(~(ECHO | ICANON));
-            raw.c_cc[VMIN] = 0;
-            raw.c_cc[VTIME] = 0;
-            if (tcsetattr(STDIN_FILENO, TCSANOW, &raw) == 0) {
-                active = true;
-            }
-        }
+    std::string name;
+    auto cmd = argu::Command("key_op")
+                   .version("1.0.0")
+                   .about("WASD teleop: w/s linear, a/d angular, space stop, q quit")
+                   .auto_exit()
+                   .arg(argu::Arg("name")
+                            .positional()
+                            .help("Robot name")
+                            .value_of(name)
+                            .value_name("NAME")
+                            .default_value("carter_1"));
 
-        ~TerminalRawMode() {
-            if (active) {
-                tcsetattr(STDIN_FILENO, TCSANOW, &orig);
-            }
-        }
-    };
-
-    static int read_key_nonblocking() {
-        unsigned char ch = 0;
-        const auto n = ::read(STDIN_FILENO, &ch, 1);
-        if (n == 1) {
-            return static_cast<int>(ch);
-        }
-        return -1;
+    auto result = cmd.parse(argc, argv);
+    if (!result) {
+        return result.exit();
     }
-} // namespace
 
-int main() {
-#ifdef AGENT47_HAS_ROS2
+    echo("Name: ", name);
+
+    // wageningen datum
+    datapod::Geo datum{51.98954034749562, 5.6584737410504715, 53.801823};
 
     dp::robot::Robot model;
     model.id.uuid = datapod::sugar::uuid::generate_v4();
-    model.id.name = dp::String("turtle1");
+    model.id.name = dp::String(name.c_str());
+    model.id.ip = dp::sugar::ip::from_string(dp::String("192.168.1.100"));
+    model.id.rci = dp::u8(1);
+
     model.props[dp::String("drive_type")] = dp::String("diff_drive");
     model.props[dp::String("steering_type")] = dp::String("ACKERMANN");
 
+    echo::trace("Model loaded");
+
     agent47::Ros2Bridge ros;
     ros.connect(model.id.name.c_str());
-    agent47::Agent agent(model, &ros);
+    echo::trace("ROS2 bridge connected");
 
-    TerminalRawMode raw;
-    if (!raw.active) {
-        echo("stdin is not a TTY; WASD disabled");
-    }
-    echo("WASD teleop: w/s linear, a/d angular, space stop, q quit");
+    agent47::Agent agent(model, &ros, datum);
+    echo::trace("Agent started");
 
-    // Latched teleop command; published at a steady rate.
     dp::Twist teleop;
 
     while (true) {
@@ -90,61 +75,18 @@ int main() {
         }
 
         bool key_handled = false;
-        if (raw.active) {
-            const int key = read_key_nonblocking();
-            if (key >= 0) {
-                constexpr dp::f64 STEP_LIN = 0.2;
-                constexpr dp::f64 STEP_ANG = 0.2;
-                constexpr dp::f64 MAX_LIN = 2.0;
-                constexpr dp::f64 MAX_ANG = 2.0;
-                if (key == 'q' || key == 'Q') {
-                    break;
-                }
-                if (key == ' ') {
-                    teleop = dp::Twist{};
-                    key_handled = true;
-                } else if (key == 'w' || key == 'W') {
-                    teleop.linear.vx += STEP_LIN;
-                    key_handled = true;
-                } else if (key == 's' || key == 'S') {
-                    teleop.linear.vx -= STEP_LIN;
-                    key_handled = true;
-                } else if (key == 'a' || key == 'A') {
-                    teleop.angular.vz += STEP_ANG;
-                    key_handled = true;
-                } else if (key == 'd' || key == 'D') {
-                    teleop.angular.vz -= STEP_ANG;
-                    key_handled = true;
-                }
-
-                if (teleop.linear.vx > MAX_LIN) {
-                    teleop.linear.vx = MAX_LIN;
-                } else if (teleop.linear.vx < -MAX_LIN) {
-                    teleop.linear.vx = -MAX_LIN;
-                }
-
-                if (teleop.angular.vz > MAX_ANG) {
-                    teleop.angular.vz = MAX_ANG;
-                } else if (teleop.angular.vz < -MAX_ANG) {
-                    teleop.angular.vz = -MAX_ANG;
-                }
-
-                if (key_handled) {
-                    echo("key=", static_cast<char>(key), " vx=", teleop.linear.vx, " wz=", teleop.angular.vz,
-                         " pos=", agent.odom.pose.point.x, ",", agent.odom.pose.point.y);
-                }
-            }
-        }
+        teleop = dp::Twist{};
+        teleop.linear.vx = 0.1;
+        teleop.angular.vz = 0.1;
 
         agent.set_velocity(teleop);
         // Always publish the latest commanded twist (if any).
         (void)agent.tick(dt_s);
 
+        echo("Agent pose: ", agent.odom.pose.point.x, " ", agent.odom.pose.point.y, " ", agent.odom.pose.point.z);
+        echo("Agent geopose: ", agent.geopos.latitude, " ", agent.geopos.longitude, " ", agent.geopos.altitude);
+
         std::this_thread::sleep_for(std::chrono::duration<double>(PUBLISH_DT_S));
     }
-
-#else
-    echo("AGENT47_HAS_ROS2 is not enabled");
-#endif
     return 0;
 }

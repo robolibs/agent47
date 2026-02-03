@@ -42,9 +42,11 @@ namespace agent47 {
         explicit Agent(dp::robot::Robot model, Bridge *bridge, dp::Geo datum = dp::Geo{0, 0, 0},
                        dp::Odom odom = dp::Odom{})
             : model_(std::move(model)) {
+            echo::trace("Agent created");
             if (bridge) {
                 bridge_ = std::shared_ptr<Bridge>(bridge, [](Bridge *) {});
             }
+
             this->datum = datum;
             this->odom = odom;
         }
@@ -74,6 +76,12 @@ namespace agent47 {
         inline void update(const types::Feedback &fb) {
             odom.pose = fb.pose;
             odom.twist = fb.twist;
+
+            const concord::frame::ENU enu{odom.pose.point.x, odom.pose.point.y, odom.pose.point.z, datum};
+            const concord::earth::WGS wgs = concord::frame::to_wgs(enu);
+            geopos.latitude = wgs.latitude;
+            geopos.longitude = wgs.longitude;
+            geopos.altitude = wgs.altitude;
         }
 
         inline dp::Result<types::Command> tick(dp::f64 dt_s) {
@@ -89,14 +97,8 @@ namespace agent47 {
             }
             auto result = tick(fb, dt_s);
 
-            const concord::frame::ENU enu{odom.pose.point.x, odom.pose.point.y, odom.pose.point.z, datum};
-            const concord::earth::WGS wgs = concord::frame::to_wgs(enu);
-            geopos.latitude = wgs.latitude;
-            geopos.longitude = wgs.longitude;
-            geopos.altitude = wgs.altitude;
-
-            echo::trace("Pose: ", fb.value.pose);
-            echo::trace("Twist: ", fb.value.twist);
+            // echo::trace("Pose: ", fb.value.pose);
+            // echo::trace("Twist: ", fb.value.twist);
 
             if (bridge_ && result.is_ok()) {
                 bridge_->send(dp::Stamp<types::Command>{fb.timestamp, result.value()});
