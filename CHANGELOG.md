@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.17] - 2026-02-03
+
+### <!-- 0 -->⛰️  Features
+
+- Add NMEA example and PTY functionality
+- Refactor simple example and agent geopose updates
+
 ## [0.0.16] - 2026-02-03
 
 ### <!-- 0 -->⛰️  Features

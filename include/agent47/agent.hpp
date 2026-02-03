@@ -16,6 +16,7 @@
 #include <datapod/pods/adapters/optional.hpp>
 #include <datapod/pods/adapters/result.hpp>
 
+#include <datapod/datapod.hpp>
 #include <datapod/pods/temporal/stamp.hpp>
 
 #include "agent47/bridge.hpp"
@@ -37,14 +38,16 @@ namespace agent47 {
         dp::Optional<farmtrax::Farmtrax> farmtrax_;
         dp::Optional<drivekit::Tracker> tracker_;
 
-        dp::Optional<nonsens::Nonsens> nonsens_;
+        nonsens::Nonsens nonsens_;
 
         explicit Agent(dp::robot::Robot model, Bridge *bridge, dp::Geo datum = dp::Geo{0, 0, 0},
                        dp::Odom odom = dp::Odom{})
             : model_(std::move(model)) {
+            echo::trace("Agent created");
             if (bridge) {
                 bridge_ = std::shared_ptr<Bridge>(bridge, [](Bridge *) {});
             }
+
             this->datum = datum;
             this->odom = odom;
         }
@@ -71,9 +74,22 @@ namespace agent47 {
         inline void set_velocity(const datapod::Twist &t) { cmd = t; }
         inline void brake() { cmd = datapod::Twist{}; }
 
+        inline dp::VoidRes add_sensor(dp::String name, nonsens::sensor::SensorType type) {
+            dp::VoidRes val = nonsens_.add(name, type);
+            return val;
+        }
+
+        nonsens::sensor::Sensor *get_sensor(dp::String const &name) { return nonsens_.get(name); }
+
         inline void update(const types::Feedback &fb) {
             odom.pose = fb.pose;
             odom.twist = fb.twist;
+
+            const concord::frame::ENU enu{odom.pose.point.x, odom.pose.point.y, odom.pose.point.z, datum};
+            const concord::earth::WGS wgs = concord::frame::to_wgs(enu);
+            geopos.latitude = wgs.latitude;
+            geopos.longitude = wgs.longitude;
+            geopos.altitude = wgs.altitude;
         }
 
         inline dp::Result<types::Command> tick(dp::f64 dt_s) {
@@ -89,14 +105,8 @@ namespace agent47 {
             }
             auto result = tick(fb, dt_s);
 
-            const concord::frame::ENU enu{odom.pose.point.x, odom.pose.point.y, odom.pose.point.z, datum};
-            const concord::earth::WGS wgs = concord::frame::to_wgs(enu);
-            geopos.latitude = wgs.latitude;
-            geopos.longitude = wgs.longitude;
-            geopos.altitude = wgs.altitude;
-
-            echo::trace("Pose: ", fb.value.pose);
-            echo::trace("Twist: ", fb.value.twist);
+            // echo::trace("Pose: ", fb.value.pose);
+            // echo::trace("Twist: ", fb.value.twist);
 
             if (bridge_ && result.is_ok()) {
                 bridge_->send(dp::Stamp<types::Command>{fb.timestamp, result.value()});

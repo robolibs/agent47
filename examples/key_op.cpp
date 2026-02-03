@@ -70,6 +70,9 @@ int main(int argc, char *argv[]) {
     dp::robot::Robot model;
     model.id.uuid = datapod::sugar::uuid::generate_v4();
     model.id.name = dp::String(name.c_str());
+    model.id.ip = dp::sugar::ip::from_string(dp::String("0.0.0.0"));
+    model.id.rci = dp::u8(1);
+
     model.props[dp::String("drive_type")] = dp::String("diff_drive");
     model.props[dp::String("steering_type")] = dp::String("ACKERMANN");
 
