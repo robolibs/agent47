@@ -16,6 +16,7 @@
 #include <datapod/pods/adapters/optional.hpp>
 #include <datapod/pods/adapters/result.hpp>
 
+#include <datapod/datapod.hpp>
 #include <datapod/pods/temporal/stamp.hpp>
 
 #include "agent47/bridge.hpp"
@@ -37,7 +38,7 @@ namespace agent47 {
         dp::Optional<farmtrax::Farmtrax> farmtrax_;
         dp::Optional<drivekit::Tracker> tracker_;
 
-        dp::Optional<nonsens::Nonsens> nonsens_;
+        nonsens::Nonsens nonsens_;
 
         explicit Agent(dp::robot::Robot model, Bridge *bridge, dp::Geo datum = dp::Geo{0, 0, 0},
                        dp::Odom odom = dp::Odom{})
@@ -72,6 +73,13 @@ namespace agent47 {
 
         inline void set_velocity(const datapod::Twist &t) { cmd = t; }
         inline void brake() { cmd = datapod::Twist{}; }
+
+        inline dp::VoidRes add_sensor(dp::String name, nonsens::sensor::SensorType type) {
+            dp::VoidRes val = nonsens_.add(name, type);
+            return val;
+        }
+
+        nonsens::sensor::Sensor *get_sensor(dp::String const &name) { return nonsens_.get(name); }
 
         inline void update(const types::Feedback &fb) {
             odom.pose = fb.pose;
