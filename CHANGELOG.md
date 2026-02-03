@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.16] - 2026-02-03
+
+### <!-- 0 -->⛰️  Features
+
+- Integrate concord and nonsens libraries
+
 ## [0.0.15] - 2026-02-01
 
 ### <!-- 0 -->⛰️  Features
