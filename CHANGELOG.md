@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.18] - 2026-02-05
+
+### <!-- 1 -->🐛 Bug Fixes
+
+- Update `geopos` calculation in Agent
+
 ## [0.0.17] - 2026-02-03
 
 ### <!-- 0 -->⛰️  Features
