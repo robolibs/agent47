@@ -85,8 +85,12 @@ namespace agent47 {
             odom.pose = fb.pose;
             odom.twist = fb.twist;
 
-            const concord::frame::ENU enu{odom.pose.point.x, odom.pose.point.y, odom.pose.point.z, datum};
-            const concord::earth::WGS wgs = concord::frame::to_wgs(enu);
+            auto x = odom.pose.point.x;
+            auto y = odom.pose.point.y;
+            datapod::Point current_pos{x, y, 0.0};
+            concord::frame::ENU enu{current_pos, datum};
+            auto wgs = concord::frame::to_wgs(enu);
+
             geopos.latitude = wgs.latitude;
             geopos.longitude = wgs.longitude;
             geopos.altitude = wgs.altitude;
