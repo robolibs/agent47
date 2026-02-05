@@ -140,8 +140,8 @@ int main(int argc, char *argv[]) {
             std::cerr << "push error: " << r.error().message.c_str() << "\n";
         }
 
-        echo("Agent pose: ", agent.odom.pose.point.x, " ", agent.odom.pose.point.y, " ", agent.odom.pose.point.z);
-        echo("Agent geopose: ", agent.geopos.latitude, " ", agent.geopos.longitude, " ", agent.geopos.altitude);
+        // echo("Agent pose: ", agent.odom.pose.point.x, " ", agent.odom.pose.point.y, " ", agent.odom.pose.point.z);
+        // echo("Agent geopose: ", agent.geopos.latitude, " ", agent.geopos.longitude, " ", agent.geopos.altitude);
 
         std::this_thread::sleep_for(std::chrono::duration<double>(PUBLISH_DT_S));
     }
