@@ -24,6 +24,19 @@
 #include "agent47/types.hpp"
 
 namespace agent47 {
+    struct AgentSpec {
+        dp::String drive_type = dp::String("diff_drive");
+        dp::String steering_type = dp::String("DIFFERENTIAL");
+
+        dp::f64 wheel_base_m = 0.0;
+        dp::f64 track_width_m = 0.0;
+        dp::f64 wheel_diameter_m = 0.0;
+
+        dp::f64 length_m = 0.0;
+        dp::f64 width_m = 0.0;
+        dp::f64 height_m = 0.0;
+    };
+
     class Agent {
       public:
         dp::u8 speed = 1;
@@ -37,6 +50,7 @@ namespace agent47 {
 
         dp::Optional<farmtrax::Farmtrax> farmtrax_;
         dp::Optional<drivekit::Tracker> tracker_;
+        dp::Optional<AgentSpec> spec_;
 
         nonsens::Nonsens nonsens_;
 
@@ -69,6 +83,23 @@ namespace agent47 {
             }
             model_.model = model_result.value();
             model_.id = RoboId;
+        }
+
+        explicit Agent(dp::robot::Identity robo_id, const AgentSpec &spec, Bridge *bridge,
+                       dp::Geo datum = dp::Geo{0, 0, 0}, dp::Odom odom = dp::Odom{})
+            : model_() {
+            echo::trace("Agent created from AgentSpec");
+            if (bridge) {
+                bridge_ = std::shared_ptr<Bridge>(bridge, [](Bridge *) {});
+            }
+
+            this->datum = datum;
+            this->odom = odom;
+
+            model_.id = robo_id;
+            model_.props[dp::String("drive_type")] = spec.drive_type;
+            model_.props[dp::String("steering_type")] = spec.steering_type;
+            spec_ = spec;
         }
 
         inline void set_velocity(const datapod::Twist &t) { cmd = t; }
@@ -124,8 +155,8 @@ namespace agent47 {
             if (cmd.has_value()) {
                 const auto s = speed;
                 out.valid = true;
-                out.twist.linear = odom.twist.linear * s;
-                out.twist.angular = odom.twist.angular * s;
+                out.twist.linear = cmd.value().linear * s;
+                out.twist.angular = cmd.value().angular * s;
                 return dp::Result<types::Command>::ok(out);
             }
             if (!tracker_) {
@@ -148,6 +179,7 @@ namespace agent47 {
 
         inline drivekit::Tracker *drivekit_tracker() { return tracker_ ? &(*tracker_) : nullptr; }
         inline const drivekit::Tracker *drivekit_tracker() const { return tracker_ ? &(*tracker_) : nullptr; }
+        inline const dp::Optional<AgentSpec> &spec() const { return spec_; }
     };
 
 } // namespace agent47
