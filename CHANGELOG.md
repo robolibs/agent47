@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.19] - 2026-02-21
+
+### <!-- 0 -->⛰️  Features
+
+- Add AgentSpec and new constructor
+
 ## [0.0.18] - 2026-02-05
 
 ### <!-- 1 -->🐛 Bug Fixes
